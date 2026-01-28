@@ -1,0 +1,2 @@
+{:paths ["live-tampers" "userscripts" "bb"]
+ :deps {joyride/joyride {:local/root ".joyride"}}}
