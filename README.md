@@ -4,7 +4,7 @@ A workspace for live tampering the web from your editor and/or AI agent harness,
 
 ## What is Epupp?
 
-Epupp is a web browser extension, a bit similar to [Tampermonkey](https://www.tampermonkey.net/), that allows you to use userscripts to tamper with web pages you visit so that they behave as you want them to. Unlike Tampermonkey, Epupp also starts a scripting REPL inside the page, exposing it to your editor and/or AI agent over the [nREPL](https://nrepl.org/) protocol. This lets you use your favorite tools to develop userscripts, and to modify/inspect web pages completely ad-hoc as you need it.
+Epupp is a web browser extension, a bit similar to [Tampermonkey](https://www.tampermonkey.net/), that allows you to use userscripts to tamper with web pages you visit so that they behave as you want them. Unlike Tampermonkey, Epupp also starts a scripting REPL inside the page, exposing it to your editor and/or AI agent over the [nREPL](https://nrepl.org/) protocol. This lets you use your favorite tools to develop userscripts, and to modify/inspect web pages completely ad-hoc as you need it.
 
 The scripting environment in Epupp is [Scittle](https://github.com/babashka/scittle), which provides an interpreted version of [ClojureScript](https://clojurescript.org/). This is a very dynamic programming language, enabling full Interactive Programming. If you have ever configured/scripted Emacs, you will recognize the model.
 
@@ -14,7 +14,7 @@ To connect the REPL client to the browser tab (the REPL server) we use [browser-
 
 ## What is My Epupp HQ?
 
-This is a template repo aimed at providing a starting point and a hub for your web live tampering with Epupp. The workspace/project contains some basic configuration and instructions to guide you and your AI agents when adding Epupp to your daily routine.
+This is a template repo aimed at providing a starting point and a hub for your live web tampering with Epupp. The workspace/project contains some basic configuration and instructions to guide you and your AI agents when adding Epupp to your daily routine.
 
 ## Prerequisites
 
@@ -35,16 +35,16 @@ This is a template repo aimed at providing a starting point and a hub for your w
 
 If your REPL client is an editor:
 
-1. Open the file `userscripts/hq/hello_world.cljs`.
-2. Connect your editor to the REPL on port 1339
-3. Evaluate the file or the expression
+4. Open the file [userscripts/hq/hello_world.cljs](userscripts/hq/hello_world.cljs).
+5. Connect your editor to the REPL on port 1339
+6. Evaluate the file or the expression
 
 If your REPL client is an AI agent:
 
-1. Connect your AI agent harness to the REPL on port 1339
-2. Tell your agent that the Epupp repl is connected and that you want it to quickly demo it for you.
+4. Connect your AI agent harness to the REPL on port 1339
+5. Tell your agent that the Epupp REPL is connected and that you want it to quickly demo it for you.
 
-## Howto connect REPL Clients to Epupp
+## How to connect REPL Clients to Epupp
 
 The REPL client needs to support nREPL. From there it is a matter of connecting to the nREPL port that the browser-nrepl relay has been started on. The mechanics for this will differ depending on the editor/AI harness used.
 
@@ -75,7 +75,7 @@ Please see [calva.io](https://calva.io) for how to get started and use Calva.
 
 #### Copilot with Calva Backseat Driver
 
-Ready to let the AI Agent hack the web for you?
+Ready to let the AI Agent hack the web for you? Assuming you did the old-fashioned Human Intelligence steps above ([VS Code with Calva](#vs-code-with-calva)):
 
 0. Install the [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension in VS Code
 1. Install [Calva Backseat Driver](https://marketplace.visualstudio.com/items?itemName=betterthantomorrow.calva-backseat-driver) in VS Code
