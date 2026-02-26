@@ -9,9 +9,8 @@
       },
       "replSessionFilePatterns": {
         "primary": [
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     },
@@ -24,9 +23,8 @@
       },
       "replSessionFilePatterns": {
         "primary": [
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     },
@@ -39,9 +37,8 @@
       },
       "replSessionFilePatterns": {
         "primary": [
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     },
@@ -54,9 +51,8 @@
       },
       "replSessionFilePatterns": {
         "primary": [
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     },
@@ -71,9 +67,8 @@
         "primary": [
           "epupp/*.clj*",
           "epupp/*.edn",
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     },
@@ -88,9 +83,8 @@
         "primary": [
           "epupp/*.clj*",
           "epupp/*.edn",
-          "test-data/tampers/*.clj*",
-          "test-data/tampers/*.edn",
-          "extension/userscripts/"
+          "userscripts/*.cljs",
+          "live-tampers/*.cljs",
         ]
       }
     }
