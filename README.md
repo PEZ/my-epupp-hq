@@ -4,13 +4,13 @@ A workspace for live tampering the web from your editor and/or AI agent harness,
 
 ## What is Epupp?
 
-Epupp is a web browser extension, a bit similar to Tampermonkey, that allows you to use userscripts to tamper with web pages you visit so that they behave as you want them to. Unlike Tampermonkey, Epupp also starts a scripting REPL inside the page, exposing it to your editor and/or AI agent over the nREPL protocol. This lets you use your favorite tools to develop userscripts, and to modify/inspect web pages completely ad-hoc as you need it.
+Epupp is a web browser extension, a bit similar to [Tampermonkey](https://www.tampermonkey.net/), that allows you to use userscripts to tamper with web pages you visit so that they behave as you want them to. Unlike Tampermonkey, Epupp also starts a scripting REPL inside the page, exposing it to your editor and/or AI agent over the [nREPL](https://nrepl.org/) protocol. This lets you use your favorite tools to develop userscripts, and to modify/inspect web pages completely ad-hoc as you need it.
 
-The scripting environment in Epupp is Scittle, which provides an interpreted version of ClojureScript. This is a very dynamic programming language, enabling full Interactive Programming. If you have ever configured/scripted Emacs, you will recognize the model.
+The scripting environment in Epupp is [Scittle](https://github.com/babashka/scittle), which provides an interpreted version of [ClojureScript](https://clojurescript.org/). This is a very dynamic programming language, enabling full Interactive Programming. If you have ever configured/scripted Emacs, you will recognize the model.
 
 Let's name the “editor and/or AI agent harness” as the “Epupp REPL client” or “REPL client” from now on.
 
-To connect the REPL client to the browser tab (the REPL server) we use browser-nrepl, a relay between the websocket exposed in the browser tab and the nREPL protocol spoken by the REPL client.
+To connect the REPL client to the browser tab (the REPL server) we use [browser-nrepl](https://github.com/babashka/sci.nrepl), a relay between the websocket exposed in the browser tab and the nREPL protocol spoken by the REPL client.
 
 ## What is My Epupp HQ?
 
@@ -52,7 +52,7 @@ Please help with making this project friendly and easy to use with your favorite
 
 ## VS Code with Calva
 
-This project has VS Code and Calva configuration for starting and connecting multiple browser-nrepl relays to some common sites.
+This project has [VS Code](https://code.visualstudio.com/) and [Calva](https://calva.io) configuration for starting and connecting multiple browser-nrepl relays to some common sites.
 
 0. Run the default Build Task: <kbd>cmd/ctrl</kbd>+<kbd>b</kbd>, this starts the relays, one of them is for the default Epupp port 1339.
 0. Connect the browser tab to browser-nrepl: Click **Connect** in the Epupp extension's popup UI.
@@ -71,29 +71,31 @@ The configuration leverages the fact that Epupp can be made to use different def
 
 To use these as provided, check `tasks.json` for the ports used and enter them in the Epupp popup UI per site. But really, they are just suggestions. Add config for your favorite sites and use whatever ports you think make sense. Note that the nREPL port needs to be synced between `tasks.json` and `settings.json`.
 
+Please see [calva.io](https://calva.io) for how to get started and use Calva.
+
 ### Copilot with Calva Backseat Driver
 
 Ready to let the AI Agent hack the web for you?
 
-0. Install the Copilot extension in VS Code
-1. Install Calva Backseat Driver in VS Code
+0. Install the [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension in VS Code
+1. Install [Calva Backseat Driver](https://marketplace.visualstudio.com/items?itemName=betterthantomorrow.calva-backseat-driver) in VS Code
 1. In the Copilot chat view select the **Epupp Assistant** agent
    * For model, Opus 4.5-6 is recommended, but Sonnet 4.5-6 and GPT 5.3 Codex also work fine. Avoid **Auto**, because VS Code will probably select some lame model that does not understand how to use the Epupp REPL.
 1. Ask Copilot to use the `epupp-default` REPL to do something fun with the web page you are connected to, or just show you that it can do something.
 
-### VS Code/Cursor with ECA
+### VS Code/Cursor with [ECA](https://github.com/editor-code-assistant/eca)
 
 TBD: PRs welcome
 
-### Cursor with Calva Backseat Driver
+### [Cursor](https://www.cursor.com/) with Calva Backseat Driver
 
 TBD: PRs welcome
 
-### Cursor with clojure-mcp
+### Cursor with [clojure-mcp](https://github.com/bhauman/clojure-mcp)
 
 TBD: PRs welcome
 
-## Emacs
+## [Emacs](https://www.gnu.org/software/emacs/)
 
 TBD: PRs welcome
 
@@ -101,7 +103,7 @@ TBD: PRs welcome
 
 TBD: PRs welcome
 
-## IntelliJ with Cursive
+## [IntelliJ](https://www.jetbrains.com/idea/) with [Cursive](https://cursive-ide.com/)
 
 TBD: PRs welcome
 
@@ -109,7 +111,7 @@ TBD: PRs welcome
 
 TBD: PRs welcome
 
-## Claude Code
+## [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
 TBD: PRs welcome
 
