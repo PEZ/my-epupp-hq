@@ -1,3 +1,6 @@
+{:epupp/script-name "hq/hello_world.cljs"
+ :epupp/description "Hello World from Epupp HQ"}
+
 (ns hq.hello-world)
 
 ;; This is a Rich Comment form.
