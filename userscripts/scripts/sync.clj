@@ -172,6 +172,18 @@
 
 ;; --- Commands ---
 
+(defn ls [{:keys [args opts]}]
+  (let [port (or (:port opts) 1339)]
+    (ensure-connected! port)
+    (let [{:keys [ok error]} (remote-ls {:port port})
+          all-names (->> ok (map :fs/name) (remove epupp-script?))
+          names (if (seq args)
+                  (expand-remote-names args all-names)
+                  all-names)]
+      (when error (abort! (str "Failed to list remote scripts: " error) 1))
+      (doseq [n (sort names)]
+        (println (str "  " n))))))
+
 (defn download [{:keys [args opts]}]
   (let [port (or (:port opts) 1339)
         force? (:force opts)

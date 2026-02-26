@@ -6,6 +6,10 @@
  {:requires ([babashka.cli :as cli]
              [sync])
 
+  ls {:doc "List scripts in Epupp"
+      :task (sync/ls (cli/parse-args *command-line-args*
+                                     {:coerce {:port :int}}))}
+
   download {:doc "Download scripts from Epupp"
             :task (sync/download (cli/parse-args *command-line-args*
                                                  {:coerce {:port :int

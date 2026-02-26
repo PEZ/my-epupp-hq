@@ -12,6 +12,16 @@ All commands are run from the `userscripts/` directory and require:
 2. A browser tab connected to Epupp
 3. **FS REPL Sync** enabled in Epupp extension settings
 
+### `bb ls`
+
+List scripts stored in Epupp. Built-in `epupp/` scripts are skipped.
+
+```sh
+bb ls                                # list all scripts
+bb ls pez                            # list scripts under pez/
+bb ls --port 11331                   # list scripts on a different port
+```
+
 ### `bb download`
 
 Download scripts from Epupp to local files. Built-in `epupp/` scripts are skipped.
