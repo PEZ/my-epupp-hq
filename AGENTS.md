@@ -26,6 +26,7 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 - Full async/await support: `^:async` functions + `await`
 - Multimethods work: `defmulti`, `defmethod`, hierarchies
 - Most of `clojure.core` is available
+- Keywords are true Clojure keywords (unlike Squint where they're strings)
 - State persists across REPL evaluations within a page (resets on reload)
 
 ## What Users Do Here
@@ -119,7 +120,7 @@ Key points:
 
 ;; Intercept immediately (no DOM needed)
 (let [original js/window.fetch]
-  (set! js/window.fetch
+  (set! (.-fetch js/window)
         (fn [url & args]
           (js/console.log "Intercepted:" url)
           (apply original url args))))
@@ -131,7 +132,7 @@ Key points:
 
 ## FS REPL API
 
-When REPL is connected and FS REPL Sync is enabled in settings, these functions are available:
+When REPL is connected, read operations are always available. Write operations additionally require FS REPL Sync to be enabled in settings.
 
 ### Read Operations (always work)
 
@@ -191,6 +192,10 @@ When REPL is connected and FS REPL Sync is enabled in settings, these functions 
 
 ;; List all matching elements
 (mapv #(.-textContent %) (js/document.querySelectorAll "h2"))
+
+;; NodeList is seqable (map, filter, mapv all work) but count doesn't.
+;; Use .-length instead:
+(.-length (js/document.querySelectorAll "h2"))
 ```
 
 ### Hide/Show/Modify Elements
@@ -273,7 +278,7 @@ When REPL is connected and FS REPL Sync is enabled in settings, these functions 
                   :z-index 99999 :padding "12px"
                   :background "#1e293b" :color "white" :border-radius "8px"}}
     [:p "Count: " (:count @!state)]
-    [:button {:on-click (fn [_] (swap! !state update :count inc) (render!))} "+"]]))
+    [:button {:on {:click (fn [_] (swap! !state update :count inc) (render!))}} "+"]]))
 
 (let [container (doto (js/document.createElement "div")
                   (set! -id "my-counter")
@@ -368,6 +373,8 @@ Many sites block `navigator.clipboard.writeText` due to permissions policy. Use 
     (js/document.execCommand "copy")
     (.removeChild js/document.body el)))
 ```
+
+**Note:** `execCommand("copy")` requires user activation context - it works from a button click handler in a userscript, but returns `false` when called directly from a REPL eval.
 
 ### Return Data, Don't Print It
 
