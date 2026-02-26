@@ -4,13 +4,11 @@ You are assisting a user who is working with **Epupp**, a browser extension for 
 
 ## Essential Knowledge
 
-**Read this first:** [epupp-user-guide.md](epupp-user-guide.md)
-
 Epupp is NOT standard ClojureScript - it runs **Scittle** in the browser. Key differences:
 - Runs in browser page context, not Node.js or JVM
 - Limited to bundled Scittle libraries (see library table below)
-- No macros beyond what Scittle provides
 - Direct DOM access via `js/` interop
+- Scittle has async/await
 
 ## What Users Do Here
 
@@ -18,7 +16,6 @@ This template project is for:
 
 1. **Live tampering** - Connect editor REPL to browser, modify pages interactively
 2. **Userscript development** - Write scripts that auto-run on matching sites
-3. **Script management** - Version control userscripts, sync via FS API
 
 ## Quick Reference Tables
 
@@ -30,7 +27,7 @@ This template project is for:
 | `:epupp/auto-run-match` | Yes | `"https://github.com/*"` or `["url1" "url2"]` |
 | `:epupp/description` | No | `"Enhance GitHub UI"` |
 | `:epupp/run-at` | No | `"document-idle"` (default), `"document-start"`, `"document-end"` |
-| `:epupp/inject` | No | `["scittle://reagent.js"]` |
+| `:epupp/inject` | No | `["scittle://replicant.js"]` |
 
 ### Available Libraries
 
@@ -43,18 +40,6 @@ This template project is for:
 | `scittle://reagent.js` | `reagent.core`, `reagent.dom` |
 | `scittle://re-frame.js` | `re-frame.core` (includes Reagent) |
 | `scittle://cljs-ajax.js` | `cljs-http.client` |
-
-### FS API Functions
-
-| Function | Purpose |
-|----------|---------|
-| `(epupp.fs/ls)` | List scripts with metadata |
-| `(epupp.fs/show "name.cljs")` | Get script code |
-| `(epupp.fs/save! code-string)` | Create/update script |
-| `(epupp.fs/mv! "old" "new")` | Rename script |
-| `(epupp.fs/rm! "name.cljs")` | Delete script |
-
-> **Note:** Write operations require **FS REPL Sync** enabled in popup Settings.
 
 ## Helping Users
 
@@ -84,32 +69,17 @@ Always include a manifest map at the top:
 | `document-start` | Need to intercept globals, block scripts, polyfill APIs |
 | `document-end` | Need DOM before images/iframes finish |
 
-**`document-start` warning:** At this timing, `document.body` is null. User code must wait for DOMContentLoaded if it needs DOM access.
+**`document-start` warning:** At this timing, `document.body` is null. User code must wait for DOMContentLoaded for functionality that needs DOM access.
 
 ### REPL Troubleshooting Checklist
 
 When users report REPL issues:
 
-1. **Is relay running?** Check terminal for `bb -Sdeps ...` command
-2. **Do ports match?** Default is 12345 (nREPL) and 12346 (WebSocket)
+1. **Is relay running?** Check process list for `bb ... sci.nrepl.browser-server ...` or `bb browser-nrepl ...` command
+2. **Do ports match?** Default is 1339 (nREPL) and 1340 (WebSocket)
 3. **Is it a scriptable page?** Cannot script `chrome://`, `about:`, or extension pages
-4. **Is popup showing "Connected"?** If not, click Connect button
-5. **Did page reload?** Reconnect from popup after page navigation
-
-### FS Sync Workflows
-
-**User wants to push local file to Epupp:**
-```clojure
-(epupp.fs/save! (slurp "/path/to/script.cljs"))
-```
-
-**User wants to pull script from Epupp:**
-```clojure
-(spit "/path/to/script.cljs" (epupp.fs/show "script_name.cljs"))
-```
-
-**User gets "FS REPL Sync is disabled" error:**
-- Direct them to popup Settings, enable "FS REPL Sync"
+4. **Is popup showing the current tab as connected? If not, click Connect button
+5. **Did page reload?** Reconnect from popup after page navigation (the user can also configure Epupp to auto-reconnect)
 
 ## Common Patterns
 
@@ -125,36 +95,27 @@ When users report REPL issues:
   (.appendChild js/document.body el))
 ```
 
-### Using Reagent
+### Using Replicant
 
 ```clojure
-{:epupp/inject ["scittle://reagent.js"]}
+{:epupp/script-name "my/replicant_widget.cljs"
+ :epupp/auto-run-match "*"
+ :epupp/inject ["scittle://replicant.js"]}
 
-(ns my-app
-  (:require [reagent.core :as r]
-            [reagent.dom :as rdom]))
+(ns my.replicant-widget
+  (:require [replicant.dom :as r]))
 
-(defonce !state (r/atom {:count 0}))
-
-(defn component []
-  [:div "Count: " (:count @!state)])
-
-(let [container (js/document.createElement "div")]
-  (.appendChild js/document.body container)
-  (rdom/render [component] container))
-```
-
-### Loading Libraries at Runtime (REPL)
-
-```clojure
-(epupp/manifest! {:epupp/inject ["scittle://pprint.js"]})
-(require '[cljs.pprint :as pprint])
+(r/render
+ (doto (js/document.createElement "div")
+   (->> (.appendChild js/document.body)))
+ [:h1 "Hello from Replicant!"])
 ```
 
 ### Intercepting Before Page Scripts
 
 ```clojure
-{:epupp/run-at "document-start"}
+{:epupp/script-name "my/document_start_test.cljs"
+ :epupp/run-at "document-start"}
 
 ;; This runs BEFORE any page JavaScript
 (let [original js/window.fetch]
@@ -168,32 +129,17 @@ When users report REPL issues:
 
 ```
 my-epupp-hq/
-  epupp-user-guide.md    # Read this for Epupp documentation
   userscripts/           # Userscripts with manifests
     hq/                  # Example namespace folder
       hello_world.cljs
-  live-tampers/          # Ad-hoc tampering code (experiments)
+  live-tampers/          # Ad-hoc tampering code (experiments, or for repeated use)
 ```
 
 - `userscripts/` - Scripts ready to sync to Epupp
-- `live-tampers/` - Temporary experiments (not synced)
+- `live-tampers/` - Strictly for REPL use
 
 ## What NOT to Do
 
 - **Don't use `epupp/` prefix** in script names - reserved for system scripts
 - **Don't assume DOM exists at `document-start`** - it doesn't
-- **Don't use standard ClojureScript patterns** that require macros or JVM features
 - **Don't suggest npm packages** - only bundled Scittle libraries are available
-
-## Documentation Index
-
-| Topic | Section in Guide |
-|-------|------------------|
-| REPL connection | [REPL Workflows](epupp-user-guide.md#repl-workflows) |
-| Manifest format | [Manifest Keys Reference](epupp-user-guide.md#manifest-keys-reference) |
-| Script timing | [Script Timing](epupp-user-guide.md#script-timing) |
-| Available libraries | [Using Scittle Libraries](epupp-user-guide.md#using-scittle-libraries) |
-| FS API | [REPL File System API](epupp-user-guide.md#repl-file-system-api) |
-| Examples | [Examples](epupp-user-guide.md#examples) |
-| UI overview | [Managing Scripts](epupp-user-guide.md#managing-scripts-popup-ui) |
-| Troubleshooting | [Troubleshooting](epupp-user-guide.md#troubleshooting) |
