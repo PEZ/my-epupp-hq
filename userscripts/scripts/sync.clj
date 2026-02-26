@@ -158,7 +158,15 @@
     :no-tab (abort! (str "Relay running on port " port " but no browser tab connected.\n"
                          "  Open a page and click Connect in the Epupp popup.")
                     1)
-    (abort! (str "Unexpected response from Epupp relay on port " port ".") 1)))
+    (abort! (str "Unexpected response from Epupp relay on port " port ".") 1))
+  ;; Probe FS Sync: built-in epupp/ scripts always exist, so empty = FS Sync disabled
+  (let [{:keys [ok error]} (eval-epupp {:port port
+                                         :expr (wrap-promise-expr "(epupp.fs/ls {:fs/ls-hidden? true})")
+                                         :timeout-ms 5000})]
+    (when (or error (empty? ok))
+      (abort! (str "FS REPL Sync is not enabled on port " port ".\n"
+                   "  Enable it in Epupp extension settings.")
+              1))))
 
 (defn- epupp-script? [name]
   (str/starts-with? name "epupp/"))
