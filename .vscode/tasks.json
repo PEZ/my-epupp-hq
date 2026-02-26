@@ -2,6 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Epupp REPL",
+      "type": "shell",
+      "command": "bb browser-nrepl --nrepl-port 1339 --websocket-port 1340",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "manual-testing"
+      }
+    },
+    {
       "label": "Epupp GitHub REPL",
       "type": "shell",
       "command": "bb browser-nrepl --nrepl-port 11331 --websocket-port 11332",
@@ -38,10 +50,24 @@
       }
     },
     {
+      "label": "Epupp Ebay REPL",
+      "type": "shell",
+      "command": "bb browser-nrepl --nrepl-port 23398 --websocket-port 23399",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "manual-testing"
+      }
+    },
+    {
       "label": "Start Dev Environment",
       "dependsOn": [
+        "Epupp REPL",
         "Epupp Gitlab REPL",
         "Epupp YouTube REPL",
+        "Epupp Ebay REPL",
         "Epupp GitHub REPL"
       ],
       "group": {
