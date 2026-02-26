@@ -42,8 +42,7 @@
     (catch Exception e
       (if (connection-refused? e)
         {:error :no-relay
-         :message (str "Cannot connect to Epupp relay on port " port
-                       ". Start it with: bb browser-nrepl --nrepl-port " port)}
+         :message (str "Failed connecting to Epupp relay on port " port)}
         {:error :execution-error
          :message (.getMessage e)}))))
 
