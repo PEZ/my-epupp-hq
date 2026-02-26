@@ -298,25 +298,26 @@
                                                       {:port port :script-names remote-names})]
                               (when error (abort! (str "Failed to fetch: " error) 1))
                               ok))
-          stats (atom {:identical 0 :different 0 :remote-only 0 :local-only 0})]
-      (doseq [name (sort all-names)]
-        (let [remote (get remote-contents name)
-              local (get local-by-name name)]
-          (cond
-            (and remote local (= remote local))
-            (swap! stats update :identical inc)
+          {:keys [identical different remote-only local-only]}
+          (reduce (fn [stats script-name]
+                    (let [remote (get remote-contents script-name)
+                          local (get local-by-name script-name)]
+                      (cond
+                        (and remote local (= remote local))
+                        (update stats :identical inc)
 
-            (and remote local)
-            (do (swap! stats update :different inc)
-                (run-diff! name remote local))
+                        (and remote local)
+                        (do (run-diff! script-name remote local)
+                            (update stats :different inc))
 
-            remote
-            (do (swap! stats update :remote-only inc)
-                (println (str "  Remote only: " name)))
+                        remote
+                        (do (println (str "  Remote only: " script-name))
+                            (update stats :remote-only inc))
 
-            local
-            (do (swap! stats update :local-only inc)
-                (println (str "  Local only: " name))))))
-      (let [{:keys [identical different remote-only local-only]} @stats]
-        (println (str "\n" identical " identical, " different " different, "
-                      remote-only " remote-only, " local-only " local-only"))))))
+                        local
+                        (do (println (str "  Local only: " script-name))
+                            (update stats :local-only inc)))))
+                  {:identical 0 :different 0 :remote-only 0 :local-only 0}
+                  (sort all-names))]
+      (println (str "\n" identical " identical, " different " different, "
+                    remote-only " remote-only, " local-only " local-only")))))
