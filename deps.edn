@@ -1,1 +1,1 @@
-{:paths ["live-tampers" "userscripts"]}
+{:paths ["live-tampers" "userscripts" "userscripts/scripts"]}

@@ -103,18 +103,44 @@
       (not (str/ends-with? normalized ".cljs")) (str ".cljs"))))
 
 (defn- collect-local-scripts []
-  (->> (fs/glob "userscripts" "**/*.cljs")
+  (->> (fs/glob "." "**/*.cljs")
        (mapv (fn [path]
                (let [code (slurp (str path))
                      manifest (read-manifest code)
-                     rel-path (str (fs/relativize "userscripts" path))]
+                     rel-path (str (fs/relativize "." path))]
                  {:local-path rel-path
                   :script-name (some-> manifest :epupp/script-name normalize-script-name)
                   :code code
                   :manifest manifest})))))
 
 (defn- script-name->local-path [script-name]
-  (str "userscripts/" script-name))
+  script-name)
+
+(defn- dir-arg?
+  "Returns true if arg refers to a directory (trailing slash or local directory)."
+  [arg]
+  (or (str/ends-with? arg "/") (fs/directory? arg)))
+
+(defn- expand-local-paths
+  "Expands args that may be directories into individual .cljs file paths."
+  [args]
+  (into []
+        (mapcat (fn [arg]
+                  (if (dir-arg? arg)
+                    (mapv str (fs/glob arg "**/*.cljs"))
+                    [arg])))
+        args))
+
+(defn- expand-remote-names
+  "Expands directory args against remote script names.
+   File args pass through; directory args filter by prefix."
+  [args all-remote-names]
+  (let [{dirs true files false} (group-by dir-arg? args)
+        prefixes (mapv #(cond-> % (not (str/ends-with? % "/")) (str "/")) dirs)]
+    (into (vec files)
+          (when (seq prefixes)
+            (filter (fn [n] (some #(str/starts-with? n %) prefixes))
+                    all-remote-names)))))
 
 ;; --- Shared CLI + Error Plumbing ---
 
@@ -144,13 +170,15 @@
         force? (:force opts)
         dry-run? (:dry-run opts)]
     (ensure-connected! port)
-    (let [script-names (if (seq args)
-                         args
-                         (let [{:keys [ok error]} (remote-ls {:port port})]
-                           (when error (abort! (str "Failed to list remote scripts: " error) 1))
-                           (->> ok
-                                (map :fs/name)
-                                (remove epupp-script?))))
+    (let [has-dirs? (some dir-arg? args)
+          all-remote (when (or (empty? args) has-dirs?)
+                       (let [{:keys [ok error]} (remote-ls {:port port})]
+                         (when error (abort! (str "Failed to list remote scripts: " error) 1))
+                         (->> ok (map :fs/name) (remove epupp-script?))))
+          script-names (cond
+                         (empty? args) all-remote
+                         has-dirs? (expand-remote-names args all-remote)
+                         :else args)
           contents (if (= 1 (count script-names))
                      (let [{:keys [ok error]} (remote-show {:port port
                                                             :script-name (first script-names)})]
@@ -185,11 +213,10 @@
     (ensure-connected! port)
     (let [scripts (if (seq args)
                     (mapv (fn [path]
-                            (let [local-path (str "userscripts/" path)
-                                  code (slurp local-path)]
+                            (let [code (slurp path)]
                               {:local-path path :code code
                                :manifest (read-manifest code)}))
-                          args)
+                          (expand-local-paths args))
                     (collect-local-scripts))]
       (doseq [{:keys [local-path code manifest]} scripts]
         (cond
@@ -229,7 +256,7 @@
       (let [{:keys [out]} (process/shell {:out :string :continue true}
                                          "diff" "-u"
                                          "-L" (str "epupp://" script-name)
-                                         "-L" (str "local://" script-name)
+                                         "-L" script-name
                                          remote-file local-file)]
         (print out))
       (finally
@@ -238,18 +265,22 @@
 (defn diff-cmd [{:keys [args opts]}]
   (let [port (or (:port opts) 1339)]
     (ensure-connected! port)
-    (let [remote-names (if (seq args)
-                         args
-                         (let [{:keys [ok error]} (remote-ls {:port port})]
-                           (when error (abort! (str "Failed to list: " error) 1))
-                           (->> ok (map :fs/name) (remove epupp-script?))))
-          local-scripts (if (seq args)
+    (let [has-dirs? (some dir-arg? args)
+          all-remote (when (or (empty? args) has-dirs?)
+                       (let [{:keys [ok error]} (remote-ls {:port port})]
+                         (when error (abort! (str "Failed to list: " error) 1))
+                         (->> ok (map :fs/name) (remove epupp-script?))))
+          remote-names (cond
+                         (empty? args) all-remote
+                         has-dirs? (expand-remote-names args all-remote)
+                         :else args)
+          expanded-local (when (seq args) (expand-local-paths args))
+          local-scripts (if expanded-local
                           (mapv (fn [path]
-                                  (let [local-path (str "userscripts/" path)]
-                                    {:local-path path
-                                     :script-name path
-                                     :code (when (fs/exists? local-path) (slurp local-path))}))
-                                args)
+                                  {:local-path path
+                                   :script-name path
+                                   :code (when (fs/exists? path) (slurp path))})
+                                expanded-local)
                           (collect-local-scripts))
           local-by-name (into {} (keep (fn [{:keys [script-name code]}]
                                          (when script-name [script-name code])))
