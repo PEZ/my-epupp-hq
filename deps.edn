@@ -1,2 +1,1 @@
-{:paths ["live-tampers" "userscripts" "bb"]
- :deps {joyride/joyride {:local/root ".joyride"}}}
+{:paths ["live-tampers" "userscripts"]}
