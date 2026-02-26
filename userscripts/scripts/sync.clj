@@ -127,7 +127,7 @@
   (into []
         (mapcat (fn [arg]
                   (if (dir-arg? arg)
-                    (mapv str (fs/glob arg "**/*.cljs"))
+                    (mapv str (fs/glob arg "**.cljs"))
                     [arg])))
         args))
 
