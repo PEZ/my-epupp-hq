@@ -334,6 +334,53 @@ bb browser-nrepl --nrepl-port 11331 --websocket-port 11332  # custom ports
 5. **Did page reload?** Auto-reconnect handles this if enabled, otherwise reconnect manually
 6. **One client per port** - connecting a second tab to the same port disconnects the first
 
+## REPL Pitfalls
+
+### Navigation Hangs the REPL
+
+On non-SPA sites, setting `js/window.location` (or clicking a link) from a REPL eval can tear down the page and its REPL. The eval response never returns - the connection hangs until the human user cancels the request. Very disruptive!
+
+**Fix: Defer navigation with `setTimeout`:**
+
+```clojure
+;; BAD - eval never completes, connection hangs
+(set! (.-location js/window) "https://example.com/page")
+
+;; GOOD - returns immediately, navigates after response completes
+(js/setTimeout
+  #(set! (.-location js/window) "https://example.com/page")
+  50)
+;; => timeout ID returned instantly
+```
+
+After navigation, wait for the new page to load and REPL to reconnect. All prior definitions will be gone - redefine utilities or bake them into a userscript.
+
+### Clipboard Access Blocked
+
+Many sites block `navigator.clipboard.writeText` due to permissions policy. Use a textarea workaround:
+
+```clojure
+(defn copy-to-clipboard! [text]
+  (let [el (js/document.createElement "textarea")]
+    (set! (.-value el) text)
+    (.appendChild js/document.body el)
+    (.select el)
+    (js/document.execCommand "copy")
+    (.removeChild js/document.body el)))
+```
+
+### Return Data, Don't Print It
+
+`prn`/`println` output may not be captured by agent tooling. Return values directly:
+
+```clojure
+;; Avoid - There is a P in REPL for a reason
+(prn result)
+
+;; Prefer - returned as eval result
+result
+```
+
 ## Project Structure
 
 ```

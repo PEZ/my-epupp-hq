@@ -44,6 +44,41 @@ If your REPL client is an AI agent:
 4. Connect your AI agent harness to the REPL on port 1339
 5. Tell your agent that the Epupp REPL is connected and that you want it to quickly demo it for you.
 
+## REPL Pitfalls
+
+### Navigation Hangs the REPL
+
+On non-SPA sites, setting `js/window.location` (or clicking a link) from a REPL eval can tear down the page and its REPL. The eval response never returns - the connection hangs until you reconnect the repl. Very disruptive!
+
+**Fix: Defer navigation with `setTimeout`:**
+
+```clojure
+;; BAD - eval never completes, connection hangs
+(set! (.-location js/window) "https://example.com/page")
+
+;; GOOD - returns immediately, navigates after response completes
+(js/setTimeout
+  #(set! (.-location js/window) "https://example.com/page")
+  50)
+;; => timeout ID returned instantly
+```
+
+After navigation, wait for the new page to load and REPL to reconnect. All prior definitions will be gone - redefine utilities or bake them into a userscript.
+
+### Clipboard Access Blocked
+
+`navigator.clipboard.writeText` is often blocked, needing user gesture, due to permissions policy. Use a textarea workaround:
+
+```clojure
+(defn copy-to-clipboard! [text]
+  (let [el (js/document.createElement "textarea")]
+    (set! (.-value el) text)
+    (.appendChild js/document.body el)
+    (.select el)
+    (js/document.execCommand "copy")
+    (.removeChild js/document.body el)))
+```
+
 ## How to connect REPL Clients to Epupp
 
 The REPL client needs to support nREPL. From there it is a matter of connecting to the nREPL port that the browser-nrepl relay has been started on. The mechanics for this will differ depending on the editor/AI harness used.
