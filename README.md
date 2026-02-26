@@ -130,7 +130,7 @@ TBD: PRs welcome
 
 TBD: PRs welcome
 
-### [Emacs](https://www.gnu.org/software/emacs/)
+### [Emacs](https://www.gnu.org/software/emacs/) with [CIDER](https://cider.mx/)
 
 TBD: PRs welcome
 
