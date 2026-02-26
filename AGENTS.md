@@ -162,6 +162,9 @@ When REPL is connected, read operations are always available. Write operations a
 (epupp.fs/rm! ["script1.cljs" "script2.cljs"])       ; bulk delete
 ```
 
+**Constraints:**
+- Read operations fail silently when FS Sync is disabled
+
 ### Load Libraries at REPL Time
 
 ```clojure
