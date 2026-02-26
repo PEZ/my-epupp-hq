@@ -48,9 +48,9 @@ If your REPL client is an AI agent:
 
 The REPL client needs to support nREPL. From there it is a matter of connecting to the nREPL port that the browser-nrepl relay has been started on. The mechanics for this will differ depending on the editor/AI harness used.
 
-Please help with making this project friendly and easy to use with your favorite editor/AI harness by providing instructions and configuration. (I am the creator of Calva so only really have bandwidth to bother with VS Code and Copilot.)
+Please help with making this project friendly and easy to use with your favorite editor/AI harness by providing instructions and configuration. (I am the creator of Calva and only really have bandwidth/know-how for VS Code and Copilot.)
 
-## VS Code with Calva
+### VS Code with Calva
 
 This project has [VS Code](https://code.visualstudio.com/) and [Calva](https://calva.io) configuration for starting and connecting multiple browser-nrepl relays to some common sites.
 
@@ -73,7 +73,7 @@ To use these as provided, check `tasks.json` for the ports used and enter them i
 
 Please see [calva.io](https://calva.io) for how to get started and use Calva.
 
-### Copilot with Calva Backseat Driver
+#### Copilot with Calva Backseat Driver
 
 Ready to let the AI Agent hack the web for you?
 
@@ -83,39 +83,39 @@ Ready to let the AI Agent hack the web for you?
    * For model, Opus 4.5-6 is recommended, but Sonnet 4.5-6 and GPT 5.3 Codex also work fine. Avoid **Auto**, because VS Code will probably select some lame model that does not understand how to use the Epupp REPL.
 1. Ask Copilot to use the `epupp-default` REPL to do something fun with the web page you are connected to, or just show you that it can do something.
 
-### VS Code/Cursor with [ECA](https://github.com/editor-code-assistant/eca)
+#### VS Code/Cursor with [ECA](https://github.com/editor-code-assistant/eca)
 
 TBD: PRs welcome
 
-### [Cursor](https://www.cursor.com/) with Calva Backseat Driver
+#### [Cursor](https://www.cursor.com/) with Calva Backseat Driver
 
 TBD: PRs welcome
 
-### Cursor with [clojure-mcp](https://github.com/bhauman/clojure-mcp)
+#### Cursor with [clojure-mcp](https://github.com/bhauman/clojure-mcp)
 
 TBD: PRs welcome
 
-## [Emacs](https://www.gnu.org/software/emacs/)
+### [Emacs](https://www.gnu.org/software/emacs/)
 
 TBD: PRs welcome
 
-## VIM
+### VIM
 
 TBD: PRs welcome
 
-## [IntelliJ](https://www.jetbrains.com/idea/) with [Cursive](https://cursive-ide.com/)
+### [IntelliJ](https://www.jetbrains.com/idea/) with [Cursive](https://cursive-ide.com/)
 
 TBD: PRs welcome
 
-## Your Favorite Editor
+### Your Favorite Editor
 
 TBD: PRs welcome
 
-## [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
 TBD: PRs welcome
 
-## Your Favorite AI Agent Harness
+### Your Favorite AI Agent Harness
 
 TBD: PRs welcome
 
