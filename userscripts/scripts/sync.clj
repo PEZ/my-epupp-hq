@@ -147,7 +147,7 @@
 (defn- abort! [message exit-code]
   (binding [*out* *err*]
     (println message))
-  (throw (ex-info message {:babashka/exit exit-code})))
+  (throw (ex-info "" {:babashka/exit exit-code})))
 
 (defn- ensure-connected! [port]
   (case (probe-connection {:port port})
