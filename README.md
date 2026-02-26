@@ -48,11 +48,17 @@ If your REPL client is an AI agent:
 
 The REPL client needs to supoprt nREPL. From there it is a matter of connecting to the nREPL port that the browser-nrepl relay has been started on. The mechanics for this will differ depending on the editor/AI harness used.
 
-Please help with making this project friendly and easy to use with your favorite editor/AI harness, by providing instructions and configuration. I am the creator of Calva so only really have bandwidth to bother with VS Code and Copilot.
+Please help with making this project friendly and easy to use with your favorite editor/AI harness, by providing instructions and configuration. (I am the creator of Calva so only really have bandwidth to bother with VS Code and Copilot.)
 
-## VS Code Calva
+## VS Code with Calva
 
-### Calva Backseat Driver
+1. In VS Code, install the Calva extension
+1. With `userscripts/hq/hello_world.cljs` opened, click the REPL button in the VS Code status bar and select **Connect to a running REPL in your project**
+1. Select **scittle** from the **Project Type** menu
+1. In the `userscripts/hq/hello_world.cljs` place the cursor in/near the code you want to evaluate and press <kbd>alt</kbd>+<kbd>enter</kbd>
+1. Check in the browser what happened
+
+### Copilot with Calva Backseat Driver
 
 ## Emacs
 
