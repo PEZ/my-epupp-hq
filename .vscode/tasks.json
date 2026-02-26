@@ -10,7 +10,7 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "manual-testing"
+        "group": "REPLs"
       }
     },
     {
@@ -22,7 +22,7 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "manual-testing"
+        "group": "REPLs"
       }
     },
     {
@@ -34,7 +34,7 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "manual-testing"
+        "group": "REPLs"
       }
     },
     {
@@ -46,7 +46,7 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "manual-testing"
+        "group": "REPLs"
       }
     },
     {
@@ -58,7 +58,7 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "manual-testing"
+        "group": "REPLs"
       }
     },
     {
