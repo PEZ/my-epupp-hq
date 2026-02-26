@@ -117,9 +117,9 @@
   script-name)
 
 (defn- dir-arg?
-  "Returns true if arg refers to a directory (trailing slash or local directory)."
+  "Returns true if arg is a directory prefix (i.e. not a .cljs file path)."
   [arg]
-  (or (str/ends-with? arg "/") (fs/directory? arg)))
+  (not (str/ends-with? arg ".cljs")))
 
 (defn- expand-local-paths
   "Expands args that may be directories into individual .cljs file paths."
