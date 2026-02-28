@@ -1,7 +1,7 @@
 > [!NOTE]
 > This file is synced from the [Epupp repository](https://github.com/PEZ/epupp)
 > (`README.md`).
-> Last synced: 2026-02-28 17:41.
+> Last synced: 2026-02-28 18:44.
 > To resync: `bb docs-sync`
 
 # Epupp: Live Tamper your Web

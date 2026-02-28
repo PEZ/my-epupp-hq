@@ -12,8 +12,9 @@
   (deref (promise)))
 
 (def ^:private docs-sync-files
-  {"docs/repl-fs-sync.md" "repl-fs-sync.md"
-   "README.md"            "epupp-README.md"})
+  {"docs/repl-fs-sync.md"        "repl-fs-sync.md"
+   "docs/connecting-to-epupp.md" "connecting-to-epupp.md"
+   "README.md"                   "epupp-README.md"})
 
 (defn- sync-note [src]
   (let [timestamp (.format (java.time.LocalDateTime/now)
