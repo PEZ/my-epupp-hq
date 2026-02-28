@@ -22,11 +22,11 @@ This is a template repo aimed at providing a starting point and a hub for your l
 * **Babashka** [installed](https://github.com/babashka/babashka#installation) on your computer
 * An **Epupp REPL client** (a Clojure REPL enabled editor and/or AI harness)
 * **Your copy of this repo** cloned to your computer
-* At least a skim of the [Epupp README](https://github.com/PEZ/epupp?tab=readme-ov-file#epupp-live-tamper-your-web)
+* At least a skim of the [docs/epupp-README.md](docs/epupp-README.md)
 
 ## Epupp Documentation
 
-Key Epupp docs are synced from the [Epupp repository](https://github.com/PEZ/epupp) into the `docs/` folder for easy access. To update them:
+Key Epupp docs are synced from the [Epupp repository](https://github.com/PEZ/epupp) into the `docs/` folder in the project. To update them:
 
 ```sh
 bb docs-sync
