@@ -24,6 +24,17 @@ This is a template repo aimed at providing a starting point and a hub for your l
 * **Your copy of this repo** cloned to your computer
 * At least a skim of the [Epupp README](https://github.com/PEZ/epupp?tab=readme-ov-file#epupp-live-tamper-your-web)
 
+## Epupp Documentation
+
+Key Epupp docs are synced from the [Epupp repository](https://github.com/PEZ/epupp) into the `docs/` folder for easy access. To update them:
+
+```sh
+bb docs-sync
+```
+
+* [docs/epupp-README.md](docs/epupp-README.md) — The Epupp README
+* [docs/epupp-repl-fs-sync.md](docs/epupp-repl-fs-sync.md) — REPL filesystem sync documentation
+
 ## Start a Live Tamper Session
 
 1. Start the browser-nrepl relay, from the project root (if you are using VS Code, see below for an alternative way to start the relay):

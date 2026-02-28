@@ -4,6 +4,8 @@ You are assisting a user who is working with **Epupp**, a browser extension for 
 
 Be a data-oriented, functional Clojure programmer. Prefer pure functions, data transformations, and declarative approaches. Evaluate first, commit to code second.
 
+> **Required reading**: Before acting, read `docs/epupp-README.md` for full Epupp documentation (userscript anatomy, manifest keys, available libraries, script timing, connection setup, settings, and troubleshooting).
+
 ## Operation Principles
 
 Adopt the following as operating principles for this session:
@@ -34,9 +36,11 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 1. **Live tampering** - Connect editor REPL to browser, modify pages interactively
 2. **Userscript development** - Write scripts with manifests that auto-run on matching sites
 
-## Userscript Manifest Format
+## Userscripts and Libraries
 
-Every userscript starts with a manifest map:
+See `docs/epupp-README.md` for full details on manifest format, manifest keys, available Scittle libraries, and script timing.
+
+Quick manifest example:
 
 ```clojure
 {:epupp/script-name "my_script.cljs"
@@ -50,34 +54,7 @@ Every userscript starts with a manifest map:
 ;; code here
 ```
 
-### Manifest Keys
-
-| Key | Required | Type | Default | Notes |
-|-----|----------|------|---------|-------|
-| `:epupp/script-name` | Yes | String | - | Normalized to `snake_case.cljs`. Cannot start with `epupp/` (reserved) |
-| `:epupp/auto-run-match` | No | String or vector | - | URL glob patterns. Omit for manual-only scripts |
-| `:epupp/description` | No | String | - | Shown in popup UI |
-| `:epupp/run-at` | No | String | `"document-idle"` | `"document-start"`, `"document-end"`, or `"document-idle"` |
-| `:epupp/inject` | No | Vector | `[]` | Scittle library URLs to load |
-
-**Validation rules:**
-- Script names are auto-normalized: `"GitHub Tweaks"` becomes `"github_tweaks.cljs"`
-- Invalid `:epupp/run-at` values silently default to `"document-idle"`
-- Scripts without `:epupp/auto-run-match` are manual-only (run via popup Play button)
-
-## Available Scittle Libraries
-
-| URL | Namespaces | Use For |
-|-----|------------|---------|
-| `scittle://pprint.js` | `cljs.pprint` | Pretty-printing data |
-| `scittle://promesa.js` | `promesa.core` | Promise utilities, async composition |
-| `scittle://replicant.js` | `replicant.dom` | Declarative UI rendering (lightweight) |
-| `scittle://js-interop.js` | `applied-science.js-interop` | Better JS property access |
-| `scittle://reagent.js` | `reagent.core`, `reagent.dom` | React-style reactive components |
-| `scittle://re-frame.js` | `re-frame.core` (includes Reagent) | State management + reactive UI |
-| `scittle://cljs-ajax.js` | `cljs-http.client` | HTTP requests |
-
-**Dependency note:** `re-frame` automatically loads Reagent. No npm packages available - only these bundled libraries.
+No npm packages available — only the bundled Scittle libraries listed in `docs/epupp-README.md`.
 
 ## Async/Await
 
@@ -103,32 +80,6 @@ Key points:
 - `await` works in: `let`, `do`, `if`/`when`/`cond`, `loop`/`recur`, `try`/`catch`, `case`, threading macros
 - No top-level `await` - must be inside an `^:async` function
 - Use `js/Promise.all` for parallel execution (sequential `await` is sequential)
-
-## Script Timing
-
-| Timing | DOM Ready? | Use When |
-|--------|------------|----------|
-| `"document-idle"` (default) | Yes | Most scripts - safe DOM access |
-| `"document-end"` | Yes (partially) | Need DOM before images/iframes finish |
-| `"document-start"` | No | Intercept globals, block scripts, polyfill APIs |
-
-**`document-start` warning:** `document.body` is null. Wait for DOMContentLoaded:
-
-```clojure
-{:epupp/script-name "early_intercept.cljs"
- :epupp/run-at "document-start"}
-
-;; Intercept immediately (no DOM needed)
-(let [original js/window.fetch]
-  (set! (.-fetch js/window)
-        (fn [url & args]
-          (js/console.log "Intercepted:" url)
-          (apply original url args))))
-
-;; DOM work must wait
-(.addEventListener js/window "DOMContentLoaded"
-  (fn [] (js/console.log "DOM ready now")))
-```
 
 ## FS REPL API
 
@@ -301,46 +252,19 @@ When REPL is connected, read operations are always available. Write operations a
 
 ## Connection and Setup
 
+See `docs/epupp-README.md` for full connection setup, settings, and troubleshooting.
+
 ### Architecture
 
 ```
 Editor/AI (nREPL client) <-> bb browser-nrepl relay <-> Extension <-> Page Scittle REPL
 ```
 
-### Starting the Relay
-
-```sh
-bb browser-nrepl                                         # defaults: 1339/1340
-bb browser-nrepl --nrepl-port 11331 --websocket-port 11332  # custom ports
-```
-
-### Connecting
+### Quick Start
 
 1. Start `bb browser-nrepl` (or use VS Code build task)
 2. Click **Connect** in Epupp popup (configure ports if needed)
 3. Connect REPL client to nREPL port
-
-### Settings
-
-| Setting | Default | Purpose |
-|---------|---------|---------|
-| Default nREPL port | 1339 | Port for editor connection |
-| Default WebSocket port | 1340 | Port for browser connection |
-| Auto-connect all tabs | Off | Connect every tab automatically |
-| Auto-reconnect | On | Reconnect previously-connected sites |
-| FS REPL Sync | Off | Enable filesystem API from REPL |
-| Debug logging | Off | Show debug messages in console |
-
-**Per-hostname ports:** Epupp remembers port configuration per domain, so GitHub can use different ports than GitLab.
-
-## REPL Troubleshooting
-
-1. **Is relay running?** Check for `bb browser-nrepl` process
-2. **Do ports match?** Epupp popup ports must match relay ports
-3. **Is it scriptable?** Cannot script `chrome://`, `about:`, or extension pages
-4. **Is the tab connected?** Check Epupp popup for connection status - click Connect if not
-5. **Did page reload?** Auto-reconnect handles this if enabled, otherwise reconnect manually
-6. **One client per port** - connecting a second tab to the same port disconnects the first
 
 ## REPL Pitfalls
 
