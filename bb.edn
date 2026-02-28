@@ -16,18 +16,4 @@
                                                                       :websocket-port :int}}))}
 
   docs-sync {:doc "Sync docs from the epupp GitHub repository"
-             :requires ([babashka.fs :as fs]
-                        [babashka.http-client :as http])
-             :task (let [base-url "https://raw.githubusercontent.com/PEZ/epupp/master/"
-                         docs-dir (str (fs/cwd) "/docs")
-                         files    {"docs/repl-fs-sync.md" "epupp-repl-fs-sync.md"
-                                   "README.md"            "epupp-README.md"}]
-                     (fs/create-dirs docs-dir)
-                     (doseq [[src dest] files]
-                       (let [{:keys [status body]} (http/get (str base-url src)
-                                                             {:throw false})]
-                         (if (= 200 status)
-                           (do (spit (str docs-dir "/" dest) body)
-                               (println "  ✓" src "->" dest))
-                           (println "  ✗" src "— HTTP" status))))
-                     (println "Done."))}}}
+             :task (tasks/docs-sync)}}}

@@ -1,3 +1,9 @@
+> [!NOTE]
+> This file is synced from the [Epupp repository](https://github.com/PEZ/epupp)
+> (`docs/repl-fs-sync.md`).
+> Last synced: 2026-02-28 17:41.
+> To resync: `bb docs-sync`
+
 # REPL File System Sync
 
 ## What is REPL FS Sync?

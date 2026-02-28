@@ -1,3 +1,9 @@
+> [!NOTE]
+> This file is synced from the [Epupp repository](https://github.com/PEZ/epupp)
+> (`README.md`).
+> Last synced: 2026-02-28 17:41.
+> To resync: `bb docs-sync`
+
 # Epupp: Live Tamper your Web
 
 A web browser extension that lets you tamper with web pages, live and/or with userscripts.
