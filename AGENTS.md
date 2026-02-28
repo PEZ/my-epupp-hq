@@ -395,12 +395,16 @@ result
 
 ```
 my-epupp-hq/
-  userscripts/           # Userscripts with manifests - ready to sync to Epupp
+  docs/
+    epupp-README.md       # Synced from the Epupp repository
+    epupp-repl-fs-sync.md # Also synced from Epupp
+  userscripts/           # Userscripts with manifests - ready to sync to Epupp (run `bb tasks` in this directory)
     hq/                  # Example namespace folder
       hello_world.cljs
   live-tampers/          # Ad-hoc REPL code (experiments, repeated patterns)
 ```
 
+- `docs/` contains documentation synced from the [Epupp repository](https://github.com/PEZ/epupp) — `bb docs-sync` updates from latest available
 - `userscripts/` holds scripts intended to be synced to Epupp via FS API or panel
 - `live-tampers/` is for REPL-evaluated code - exploratory tampering, utilities, exercises
 
