@@ -17,13 +17,10 @@
    "README.md"                   "epupp-README.md"})
 
 (defn- sync-note [src]
-  (let [timestamp (.format (java.time.LocalDateTime/now)
-                           (java.time.format.DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm"))]
-    (str "> [!NOTE]\n"
-         "> This file is synced from the [Epupp repository](https://github.com/PEZ/epupp)\n"
-         "> (`" src "`).\n"
-         "> Last synced: " timestamp ".\n"
-         "> To resync: `bb docs-sync`\n\n")))
+  (str "> [!NOTE]\n"
+       "> This file is synced from the [Epupp repository](https://github.com/PEZ/epupp)\n"
+       "> (`" src "`).\n"
+       "> To resync: `bb docs-sync`\n\n"))
 
 (defn docs-sync
   "Sync docs from the epupp GitHub repository"
