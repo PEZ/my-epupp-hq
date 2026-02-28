@@ -1,6 +1,8 @@
 # Userscripts
 
-Your Epupp userscripts live here. Each script is a `.cljs` file with a manifest map as the first form, followed by the script code. See [AGENTS.md](../AGENTS.md) for the manifest format and available Scittle libraries.
+Your Epupp userscripts live here. Each script is a `.cljs` file with a manifest map as the first form, followed by the script code.
+* See [epupp-README.md](../docs/epupp-README.md) for the manifest format and available Scittle libraries.
+* See [repl-fs-sync.md](../docs/repl-fs-sync.md) for details on how the REPL filesystem sync works, which these scripts rely on.
 
 ## Syncing Scripts with Epupp
 
