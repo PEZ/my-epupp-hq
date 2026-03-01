@@ -44,17 +44,15 @@ bb docs-sync
    ```
 2. Connect the browser tab to browser-nrepl: Click **Connect** in the Epupp extension's popup UI.
 3. Connect your REPL client: This will depend on what you are using as your REPL client, see [docs/repl-fs-sync.md](docs/repl-fs-sync.md).
+* If your REPL client is an editor:
 
-If your REPL client is an editor:
+  1. Open the file [userscripts/hq/hello_world.cljs](userscripts/hq/hello_world.cljs).
+  2. Connect your editor to the REPL on port 1339
+  3. Evaluate the file or the expression
+* If your REPL client is an AI agent:
 
-4. Open the file [userscripts/hq/hello_world.cljs](userscripts/hq/hello_world.cljs).
-5. Connect your editor to the REPL on port 1339
-6. Evaluate the file or the expression
-
-If your REPL client is an AI agent:
-
-4. Connect your AI agent harness to the REPL on port 1339
-5. Tell your agent that the Epupp REPL is connected and that you want it to quickly demo it for you.
+  1. Connect your AI agent harness to the REPL on port 1339
+  2. Tell your agent that the Epupp REPL is connected and that you want it to quickly demo it for you.
 
 ## Sync the Hello World Script to Epupp
 
