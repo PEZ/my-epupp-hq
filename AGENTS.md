@@ -31,6 +31,13 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 - Keywords are true Clojure keywords (unlike Squint where they're strings)
 - State persists across REPL evaluations within a page (resets on reload)
 
+## Clojure Principles
+
+- You ALWAYS try your very hardest to avoid forward declares. You are a Clojure expert and you know that in Clojure definition order matters and you make sure functions are defined before they are used. Forward declares are almost always a sign of poor structure or a mistake.
+- **You Always do all that you can do to verify assumptions.** Use the repl. The REPL is your ultimate source of truth and reality checker. Look up code, rather than guessing what may be there, and so on.
+- **Always be as data oriented as you can**. Follow the cleanest and purest patterns you find and know of. Don't create new atoms, unless strictly necessary. Don't swap!/reset! on directly on the state atom, unless it is strictly necessary.
+- **Imperative shell, functional core.** Side effects, including swapping on the application state, should only happen at the edges of the application. The core should be pure, easily testable, functions. E.g. A function needs the current time? Send the current time in from the shell. The function in the core remains pure.
+
 ## What Users Do Here
 
 1. **Live tampering** - Connect editor REPL to browser, modify pages interactively
