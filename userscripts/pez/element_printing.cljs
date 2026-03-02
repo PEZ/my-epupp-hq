@@ -11,6 +11,7 @@
          :highlighted-el nil
          :isolated-el nil
          :hidden-els []
+         :saved-ancestor-styles []
          :original-body-padding nil
          :control-bar nil
          :print-style nil}))
@@ -58,9 +59,46 @@
             (recur parent)))))
     @hidden))
 
+(def ^:private style-props ["overflow" "overflow-y" "max-height" "height"])
+
+(defn- save-style-props [style]
+  (into {} (map (fn [prop]
+                  [prop {:value (.getPropertyValue style prop)
+                         :priority (.getPropertyPriority style prop)}])
+                style-props)))
+
+(defn- set-overflow-props! [style overflow overflowY]
+  (.setProperty style "overflow" overflow "important")
+  (.setProperty style "overflow-y" overflowY "important")
+  (.setProperty style "max-height" "none" "important")
+  (.setProperty style "height" "auto" "important"))
+
+(defn- restore-style-props! [style saved-props]
+  (doseq [prop style-props]
+    (let [{:keys [value priority]} (get saved-props prop)]
+      (if (= "" value)
+        (.removeProperty style prop)
+        (.setProperty style prop value priority)))))
+
+(defn reset-ancestor-overflow! [el]
+  (let [saved (atom [])]
+    (loop [current (.-parentElement el)]
+      (when current
+        (let [style (.-style current)
+              props (save-style-props style)]
+          (swap! saved conj {:el current :props props})
+          (if (or (= current js/document.body) (= current js/document.documentElement))
+            (set-overflow-props! style "auto" "auto")
+            (set-overflow-props! style "visible" "visible")))
+        (when (not= current js/document.documentElement)
+          (recur (.-parentElement current)))))
+    (swap! !state assoc :saved-ancestor-styles @saved)))
+
 (defn restore-page! []
   (doseq [{:keys [el display]} (:hidden-els @!state)]
     (set! (.. el -style -display) (or display "")))
+  (doseq [{:keys [el props]} (:saved-ancestor-styles @!state)]
+    (restore-style-props! (.-style el) props))
   (when-let [padding (:original-body-padding @!state)]
     (set! (.. js/document.body -style -paddingTop) padding))
   (when-let [bar (:control-bar @!state)]
@@ -70,6 +108,7 @@
   (swap! !state assoc
          :mode :idle
          :hidden-els []
+         :saved-ancestor-styles []
          :isolated-el nil
          :control-bar nil
          :print-style nil
@@ -127,6 +166,7 @@
            :hidden-els hidden
            :isolated-el el
            :mode :isolated)
+    (reset-ancestor-overflow! el)
     (show-control-bar!)))
 
 ;; --- Hover mode ---
