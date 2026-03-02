@@ -695,26 +695,14 @@
                               engagements pinned? last-engaged]
                   :as post}]
   [:div {:replicant/key urn
-         :style {:padding "12px" :border-bottom "1px solid #e0e0e0" :position "relative"
+         :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
                  :background (if pinned? "#fffde7" "white")
                  :cursor (if (string/starts-with? urn "urn:li:synthetic:") "default" "pointer")}
          :on {:click (fn [_e]
                        (when-not (string/starts-with? urn "urn:li:synthetic:")
                          (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank")))}}
-   ;; Delete button top-right
-   [:button {:style {:position "absolute" :top "4px" :right "4px"
-                     :background "none" :border "none" :cursor "pointer"
-                     :color "#ccc" :font-size "16px" :padding "2px 6px"
-                     :border-radius "4px" :line-height "1"}
-             :title "Remove from tracker"
-             :on {:click (fn [e]
-                           (.stopPropagation e)
-                           (swap! !state remove-post urn)
-                           (schedule-save!))}}
-    "\u00D7"]
    ;; Author row
-   [:div {:style {:display "flex" :align-items "center" :gap "8px" :margin-bottom "6px"
-                  :padding-right "20px"}}
+   [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
     (if author-avatar-url
       [:img {:src author-avatar-url
              :style {:width "32px" :height "32px" :border-radius "50%"}}]
@@ -730,10 +718,21 @@
      [:div {:style {:font-size "11px" :color "#666" :white-space "nowrap"
                     :overflow "hidden" :text-overflow "ellipsis"}}
       (or author-headline "")]]
-    (when pinned?
-      [:span {:style {:color "#f59e0b" :font-size "16px"}} "\u2605"])
-    [:span {:style {:font-size "11px" :color "#999" :white-space "nowrap"}}
-     (format-relative-time last-engaged (js/Date.now))]]
+    [:div {:style {:display "flex" :align-items "center" :gap "4px"
+                   :white-space "nowrap" :flex-shrink "0" :margin-top "2px"}}
+     (when pinned?
+       [:span {:style {:color "#f59e0b" :font-size "14px" :line-height "1"}} "\u2605"])
+     [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
+      (format-relative-time last-engaged (js/Date.now))]
+     [:button {:style {:background "none" :border "none" :cursor "pointer"
+                       :color "#ccc" :font-size "14px" :padding "0"
+                       :line-height "1" :margin-left "2px"}
+               :title "Remove from tracker"
+               :on {:click (fn [e]
+                             (.stopPropagation e)
+                             (swap! !state remove-post urn)
+                             (schedule-save!))}}
+      "\u00D7"]]]
    ;; Text preview
    (when text-preview
      [:div {:style {:font-size "12px" :color "#333" :margin-bottom "6px"
