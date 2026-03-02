@@ -2,7 +2,7 @@
   "calva.customREPLCommandSnippets": [
     {
       "name": "Manifest",
-      "snippet": "(epupp.repl/manifest! $current-toplevel-form)"
+      "snippet": "(epupp.repl/manifest! $top-level-form)"
     },
     {
       "name": "Upload current userscript",
