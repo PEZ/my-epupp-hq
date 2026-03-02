@@ -85,6 +85,11 @@ bb tasks
 
 See the [userscripts README](userscripts/README.md) for the full sync workflow.
 
+## Install a useful Epupp Userscript
+
+Isolate elements on crowded web pages for printing. (It's the script created in the demo video.)
+* `pez/element_printing.cljs`: https://gist.github.com/PEZ/3b0fdc406e7593eaaef609b6fb4a687d
+
 ## Enjoy! ♥️
 
 Epupp is created and maintained by Peter Strömberg a.k.a PEZ, and provided as open source and is free to use. A lot of my time is spent on bringing Epupp and related software to you, and keeping it supported, working, and relevant.
