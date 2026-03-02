@@ -45,6 +45,8 @@
    :sel/article-title     [".update-components-article__title" ".update-components-article-first-party__title"]
    :sel/article-subtitle  ["[class*='update-components-article__subtitle']" ".update-components-article-first-party__subtitle"]
    :sel/article-link      ["a[aria-label]"]
+   :sel/article-image-link ["[data-view-name='feed-article-image']"]
+   :sel/article-desc-link  ["[data-view-name='feed-article-description']"]
    :sel/image-container   [".update-components-image"]
    :sel/video             ["video"]
    :sel/document          [".update-components-document__container"]
@@ -171,17 +173,21 @@
    :raw/author-profile-url (some-> (q post-el :sel/author-link) (.getAttribute "href"))
    :raw/text (some-> (q post-el :sel/post-text) .-textContent)
    :raw/timestamp-text (some-> (q post-el :sel/timestamp) .-textContent)
-   :raw/has-article? (some? (q post-el :sel/article-card))
+   :raw/has-article? (or (some? (q post-el :sel/article-card))
+                        (some? (q post-el :sel/article-desc-link)))
    :raw/article-title (let [card (q post-el :sel/article-card)]
                         (or (some-> card (q :sel/article-title) .-textContent string/trim)
-                            (some-> card (.querySelector "span") .-textContent string/trim)))
+                            (some-> card (.querySelector "span") .-textContent string/trim)
+                            (some-> (q post-el :sel/article-desc-link) (.querySelector "p") .-textContent string/trim)))
    :raw/article-subtitle (let [card (q post-el :sel/article-card)]
                            (or (some-> card (q :sel/article-subtitle) .-textContent string/trim)
-                               (some-> card (.querySelectorAll "p") last .-textContent string/trim)))
+                               (some-> card (.querySelectorAll "p") last .-textContent string/trim)
+                               (some-> (q post-el :sel/article-desc-link) (.querySelectorAll "p") second .-textContent string/trim)))
    :raw/article-url (let [card (q post-el :sel/article-card)]
                       (or (some-> card (q :sel/article-link) (.getAttribute "href"))
                           (when (= "A" (some-> card .-tagName))
-                            (.getAttribute card "href"))))
+                            (.getAttribute card "href"))
+                          (some-> (q post-el :sel/article-desc-link) (.getAttribute "href"))))
    :raw/has-video? (some? (q post-el :sel/video))
    :raw/video-poster-url (or (some-> (q post-el :sel/video) (.getAttribute "poster"))
                              (some-> (q post-el :sel/video) .-parentElement (.querySelector "img") (.getAttribute "src")))
@@ -190,7 +196,8 @@
    :raw/has-poll? (some? (q post-el :sel/poll))
    :raw/has-image? (some? (q post-el :sel/image-container))
    :raw/image-url (some-> (q post-el :sel/image-container) (.querySelector "img") (.getAttribute "src"))
-   :raw/article-image-url (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
+   :raw/article-image-url (or (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
+                              (some-> (q post-el :sel/article-image-link) (.querySelector "img") (.getAttribute "src")))
    :raw/has-reshare? (some? (.querySelector post-el ".update-components-mini-update-v2"))})
 
 ;; Pure Transforms (testable without DOM)
