@@ -297,6 +297,11 @@
 (defn toggle-pin [state urn]
   (update-in state [:tracker/posts urn :post/pinned?] not))
 
+(defn remove-post [state urn]
+  (-> state
+      (update :tracker/posts dissoc urn)
+      (update :tracker/index #(vec (remove #{urn} %)))))
+
 (defn track-own-post
   "Track a post authored by the current user.
    New post: tracked with :engaged/posted, timestamps set to now.
@@ -727,8 +732,8 @@
    ;; Article mini-card
    (when (= media-type :media/article)
      (article-mini-card post))
-   ;; Badges
-   [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
+   ;; Badges + delete
+   [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap" :align-items "center"}}
     (when media-type
       [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
                       :border-radius "4px" :font-size "10px"}}
@@ -737,7 +742,16 @@
       [:span {:replicant/key eng
               :style {:background "#f3e5f5" :color "#7b1fa2" :padding "2px 6px"
                       :border-radius "4px" :font-size "10px"}}
-       eng])]])
+       eng])
+    [:button {:style {:margin-left "auto" :background "none" :border "none"
+                      :cursor "pointer" :color "#999" :font-size "14px"
+                      :padding "2px 4px" :border-radius "4px" :line-height "1"}
+              :title "Remove from tracker"
+              :on {:click (fn [e]
+                            (.stopPropagation e)
+                            (swap! !state remove-post urn)
+                            (schedule-save!))}}
+     "\u00D7"]]])
 
 (defn panel-view [state]
   (let [{:keys [tracker/posts ui/search-text ui/filter-engagement]} state
