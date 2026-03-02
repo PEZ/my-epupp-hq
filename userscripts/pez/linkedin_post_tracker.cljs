@@ -15,8 +15,6 @@
          :ui/panel-open?  false
          :ui/search-text  ""
          :ui/filter-engagement nil
-         :ui/sort-by      :sort/last-engaged
-         :ui/sort-order   :desc
          :nav/seen-urns   #{}}))
 
 (defonce !resources (atom {}))
@@ -517,16 +515,8 @@
     filter-engagement
     (filter #(contains? (:post/engagements %) filter-engagement))))
 
-(defn sort-posts [posts sort-by-key sort-order]
-  (let [key-fn (case sort-by-key
-                 :sort/last-engaged :post/last-engaged
-                 :sort/first-seen :post/first-seen
-                 :sort/author :post/author-name
-                 :post/last-engaged)
-        sorted (sort-by key-fn posts)]
-    (if (= sort-order :desc)
-      (reverse sorted)
-      sorted)))
+(defn sort-posts [posts]
+  (reverse (sort-by :post/last-engaged posts)))
 
 (defn initials [author-name]
   (when author-name
@@ -591,9 +581,10 @@
         [:div {:style {:font-size "10px" :color "#999" :margin-top "2px"}}
          domain])]]))
 
-(defn post-card [{:as post :keys [post/urn post/author-name post/author-avatar-url
-                                  post/author-headline post/text-preview post/media-type
-                                  post/engagements post/pinned? post/last-engaged]}]
+(defn post-card [{:post/keys [urn author-name author-avatar-url
+                              author-headline text-preview media-type
+                              engagements pinned? last-engaged]
+                  :as post}]
   [:div {:replicant/key urn
          :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
                  :background (if pinned? "#fffde7" "white")
@@ -645,10 +636,9 @@
        eng])]])
 
 (defn panel-view [state]
-  (let [{:keys [tracker/posts ui/search-text ui/filter-engagement
-                ui/sort-by ui/sort-order]} state
+  (let [{:keys [tracker/posts ui/search-text ui/filter-engagement]} state
         filtered (filter-posts posts state)
-        sorted (sort-posts filtered sort-by sort-order)
+        sorted (sort-posts filtered)
         post-count (count posts)]
     [:div {:id "epupp-tracker-panel"
            :style {:position "fixed" :top "52px" :right "0" :bottom "0"
@@ -685,26 +675,9 @@
                                 (swap! !state assoc :ui/filter-engagement
                                        (when (not= filter-engagement k) k)))}}
          label])]
-     ;; Sort controls
-     [:div {:style {:padding "4px 16px" :display "flex" :justify-content "space-between"
-                    :align-items "center" :font-size "11px" :color "#666"}}
-      [:span (str (count sorted) " matching posts")]
-      [:div {:style {:display "flex" :gap "8px" :align-items "center"}}
-       [:select {:value (name sort-by)
-                 :style {:font-size "11px" :padding "2px 18px 2px 4px" :border "1px solid #ccc"
-                         :border-radius "4px" :appearance "auto" :background "white"}
-                 :on {:change (fn [e]
-                                (swap! !state assoc :ui/sort-by
-                                       (keyword "sort" (.. e -target -value))))}}
-        [:option {:value "last-engaged"} "Last engaged"]
-        [:option {:value "first-seen"} "First seen"]
-        [:option {:value "author"} "Author"]]
-       [:button {:style {:background "none" :border "none" :cursor "pointer"
-                         :font-size "14px"}
-                 :on {:click (fn [_]
-                               (swap! !state update :ui/sort-order
-                                      #(if (= % :desc) :asc :desc)))}}
-        (if (= sort-order :desc) "\u25bc" "\u25b2")]]]
+     ;; Post count
+     [:div {:style {:padding "4px 16px" :font-size "11px" :color "#666"}}
+      [:span (str (count sorted) " matching posts")]]
      ;; Post list
      [:div {:style {:flex "1" :overflow-y "auto" :overscroll-behavior "contain"}}
       (if (seq sorted)
@@ -829,3 +802,8 @@
   :initialized)
 
 (init!)
+
+(comment
+  (teardown!)
+  :rcf)
+
