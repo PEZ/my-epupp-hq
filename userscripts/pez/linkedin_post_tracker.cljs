@@ -99,18 +99,39 @@
 (defn activity-urn? [urn]
   (and (string? urn)
        (or (string/starts-with? urn "urn:li:activity:")
-           (string/starts-with? urn "urn:li:share:"))))
+           (string/starts-with? urn "urn:li:share:")
+           (string/starts-with? urn "urn:li:synthetic:"))))
+
+(defn- string-hash [s]
+  (reduce (fn [hash ch]
+            (let [h (+ (bit-shift-left hash 5) (- hash) (.charCodeAt ch 0))]
+              (bit-and h 0x7fffffff)))
+          0
+          s))
+
+(defn- generate-synthetic-urn [profile-url text]
+  (when (and profile-url text)
+    (let [slug (second (re-find #"/in/([^/?#]+)" profile-url))
+          text-start (subs text 0 (min 100 (count text)))
+          hash-input (str slug "|" text-start)]
+      (str "urn:li:synthetic:" (string-hash hash-input)))))
 
 (defn extract-urn-from-element
   "Extract a post URN from an element. Checks data-urn attribute first,
-   then searches links for activity/share URN patterns in hrefs."
+   then searches links for activity/share URN patterns in hrefs.
+   Falls back to generating a synthetic URN from profile + post text."
   [el]
   (or (.getAttribute el "data-urn")
       (some (fn [link]
               (when-let [href (.getAttribute link "href")]
                 (when-let [[_ type id] (re-find #"urn(?:%3A|:)li(?:%3A|:)(activity|share)(?:%3A|:)(\d+)" href)]
                   (str "urn:li:" type ":" id))))
-            (.querySelectorAll el "a[href]"))))
+            (.querySelectorAll el "a[href]"))
+      (let [profile-url (some-> (.querySelector el "[data-view-name='feed-actor-image']")
+                                (.getAttribute "href"))
+            text (some-> (.querySelector el "[data-view-name='feed-commentary']")
+                         .-textContent)]
+        (generate-synthetic-urn profile-url text))))
 
 (defn find-post-container
   "Find the containing post element from a target element.
@@ -670,9 +691,10 @@
   [:div {:replicant/key urn
          :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
                  :background (if pinned? "#fffde7" "white")
-                 :cursor "pointer"}
+                 :cursor (if (string/starts-with? urn "urn:li:synthetic:") "default" "pointer")}
          :on {:click (fn [_e]
-                       (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank"))}}
+                       (when-not (string/starts-with? urn "urn:li:synthetic:")
+                         (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank")))}}
    ;; Author row
    [:div {:style {:display "flex" :align-items "center" :gap "8px" :margin-bottom "6px"}}
     (if author-avatar-url
