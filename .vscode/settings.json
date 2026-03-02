@@ -1,4 +1,14 @@
 {
+  "calva.customREPLCommandSnippets": [
+    {
+      "name": "Manifest",
+      "snippet": "(epupp.repl/manifest! $current-toplevel-form)"
+    },
+    {
+      "name": "Upload current userscript",
+      "snippet": "(epupp.fs/save! ${file-text|pr-str} {:fs/force? true})"
+    }
+  ],
   "calva.replConnectSequences": [
     {
       "name": "Epupp REPL",
