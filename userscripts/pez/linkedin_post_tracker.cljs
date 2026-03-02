@@ -98,17 +98,18 @@
 
 (defn activity-urn? [urn]
   (and (string? urn)
-       (string/starts-with? urn "urn:li:activity:")))
+       (or (string/starts-with? urn "urn:li:activity:")
+           (string/starts-with? urn "urn:li:share:"))))
 
 (defn extract-urn-from-element
-  "Extract an activity URN from an element. Checks data-urn attribute first,
+  "Extract a post URN from an element. Checks data-urn attribute first,
    then searches links for activity/share URN patterns in hrefs."
   [el]
   (or (.getAttribute el "data-urn")
       (some (fn [link]
               (when-let [href (.getAttribute link "href")]
-                (when-let [match (re-find #"urn(?:%3A|:)li(?:%3A|:)activity(?:%3A|:)(\d+)" href)]
-                  (str "urn:li:activity:" (second match)))))
+                (when-let [[_ type id] (re-find #"urn(?:%3A|:)li(?:%3A|:)(activity|share)(?:%3A|:)(\d+)" href)]
+                  (str "urn:li:" type ":" id))))
             (.querySelectorAll el "a[href]"))))
 
 (defn find-post-container
