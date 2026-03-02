@@ -176,7 +176,8 @@
    :raw/article-subtitle (some-> (q post-el :sel/article-card) (q :sel/article-subtitle) .-textContent string/trim)
    :raw/article-url (some-> (q post-el :sel/article-card) (q :sel/article-link) (.getAttribute "href"))
    :raw/has-video? (some? (q post-el :sel/video))
-   :raw/video-poster-url (some-> (q post-el :sel/video) (.getAttribute "poster"))
+   :raw/video-poster-url (or (some-> (q post-el :sel/video) (.getAttribute "poster"))
+                             (some-> (q post-el :sel/video) .-parentElement (.querySelector "img") (.getAttribute "src")))
    :raw/has-document? (some? (q post-el :sel/document))
    :raw/has-carousel? (some? (q post-el :sel/carousel))
    :raw/has-poll? (some? (q post-el :sel/poll))
@@ -694,14 +695,26 @@
                               engagements pinned? last-engaged]
                   :as post}]
   [:div {:replicant/key urn
-         :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
+         :style {:padding "12px" :border-bottom "1px solid #e0e0e0" :position "relative"
                  :background (if pinned? "#fffde7" "white")
                  :cursor (if (string/starts-with? urn "urn:li:synthetic:") "default" "pointer")}
          :on {:click (fn [_e]
                        (when-not (string/starts-with? urn "urn:li:synthetic:")
                          (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank")))}}
+   ;; Delete button top-right
+   [:button {:style {:position "absolute" :top "4px" :right "4px"
+                     :background "none" :border "none" :cursor "pointer"
+                     :color "#ccc" :font-size "16px" :padding "2px 6px"
+                     :border-radius "4px" :line-height "1"}
+             :title "Remove from tracker"
+             :on {:click (fn [e]
+                           (.stopPropagation e)
+                           (swap! !state remove-post urn)
+                           (schedule-save!))}}
+    "\u00D7"]
    ;; Author row
-   [:div {:style {:display "flex" :align-items "center" :gap "8px" :margin-bottom "6px"}}
+   [:div {:style {:display "flex" :align-items "center" :gap "8px" :margin-bottom "6px"
+                  :padding-right "20px"}}
     (if author-avatar-url
       [:img {:src author-avatar-url
              :style {:width "32px" :height "32px" :border-radius "50%"}}]
@@ -732,8 +745,8 @@
    ;; Article mini-card
    (when (= media-type :media/article)
      (article-mini-card post))
-   ;; Badges + delete
-   [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap" :align-items "center"}}
+   ;; Badges
+   [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
     (when media-type
       [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
                       :border-radius "4px" :font-size "10px"}}
@@ -742,16 +755,7 @@
       [:span {:replicant/key eng
               :style {:background "#f3e5f5" :color "#7b1fa2" :padding "2px 6px"
                       :border-radius "4px" :font-size "10px"}}
-       eng])
-    [:button {:style {:margin-left "auto" :background "none" :border "none"
-                      :cursor "pointer" :color "#999" :font-size "14px"
-                      :padding "2px 4px" :border-radius "4px" :line-height "1"}
-              :title "Remove from tracker"
-              :on {:click (fn [e]
-                            (.stopPropagation e)
-                            (swap! !state remove-post urn)
-                            (schedule-save!))}}
-     "\u00D7"]]])
+       eng])]])
 
 (defn panel-view [state]
   (let [{:keys [tracker/posts ui/search-text ui/filter-engagement]} state
