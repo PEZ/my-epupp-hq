@@ -53,7 +53,8 @@
    :sel/nav-bar           [".global-nav__nav" "#global-nav nav"]
    :sel/nav-items-list    [".global-nav__primary-items"]
    :sel/nav-items         [".global-nav__primary-item"]
-   :sel/user-avatar       ["img.global-nav__me-photo"]})
+   :sel/user-avatar       ["img.global-nav__me-photo"]
+   :sel/me-profile-link   ["a.profile-card-profile-link"]})
 
 (defn q
   "Query for first matching element using selector fallback chain."
@@ -180,6 +181,17 @@
   (or (not (activity-urn? urn))
       (some? (when timestamp-text (re-find #"(?i)promot" timestamp-text)))))
 
+(defn extract-profile-slug [url]
+  (some-> url
+          (as-> u (second (re-find #"/in/([^/?#]+)" u)))
+          string/lower-case))
+
+(defn own-post? [current-user-slug raw-data]
+  (let [author-slug (extract-profile-slug (:raw/author-profile-url raw-data))]
+    (and (some? current-user-slug)
+         (some? author-slug)
+         (= current-user-slug author-slug))))
+
 (defn find-post-urn [el]
   (when-let [post-el (.closest el "[data-urn]")]
     (let [raw (scrape-post-element post-el)]
@@ -234,6 +246,30 @@
 
 (defn toggle-pin [state urn]
   (update-in state [:tracker/posts urn :post/pinned?] not))
+
+(defn track-own-post
+  "Track a post authored by the current user.
+   New post: tracked with :engaged/posted, timestamps set to now.
+   Already tracked without :engaged/posted: adds engagement, doesn't update last-engaged.
+   Already has :engaged/posted: no-op."
+  [state urn snapshot]
+  (let [existing (get-in state [:tracker/posts urn])]
+    (cond
+      ;; Already has :engaged/posted - no-op
+      (contains? (:post/engagements existing) :engaged/posted)
+      state
+
+      ;; Tracked but missing :engaged/posted - add engagement only
+      existing
+      (update-in state [:tracker/posts urn :post/engagements] conj :engaged/posted)
+
+      ;; Not tracked - create new entry
+      :else
+      (-> state
+          (assoc-in [:tracker/posts urn]
+                    (-> snapshot
+                        (assoc :post/engagements #{:engaged/posted})))
+          (update :tracker/index conj urn)))))
 
 (defn prune-posts
   "Remove oldest unpinned posts when over capacity."
@@ -421,13 +457,29 @@
                                (schedule-save!))))
         (.insertBefore target-container btn overflow-btn)))))
 
+(defn detect-current-user-slug! []
+  (when-not (:nav/current-user-slug @!state)
+    (when-let [el (q-doc :sel/me-profile-link)]
+      (when-let [slug (extract-profile-slug (.getAttribute el "href"))]
+        (swap! !state assoc :nav/current-user-slug slug)
+        (js/console.log "[epupp:tracker] Current user detected:" slug)
+        slug))))
+
 (defn scan-post! [post-el]
   (let [raw (scrape-post-element post-el)]
     (when (and (activity-urn? (:raw/urn raw))
                (not (promoted-post? raw))
                (not ((:nav/seen-urns @!state) (:raw/urn raw))))
-      (swap! !state update :nav/seen-urns conj (:raw/urn raw))
-      (inject-pin-button! post-el (:raw/urn raw)))))
+      (let [urn (:raw/urn raw)]
+        (swap! !state update :nav/seen-urns conj urn)
+        (inject-pin-button! post-el urn)
+        (when-let [current-user-slug (:nav/current-user-slug @!state)]
+          (when (own-post? current-user-slug raw)
+            (let [now (.toISOString (js/Date.))
+                  snapshot (raw->post-snapshot raw now)]
+              (swap! !state track-own-post urn snapshot)
+              (schedule-save!)
+              (js/console.log "[epupp:tracker] Own post detected:" urn))))))))
 
 (defn scan-visible-posts! []
   (doseq [post-el (qa-doc :sel/post-container)]
@@ -478,7 +530,8 @@
    :engaged/commented "Commented"
    :engaged/reposted "Reposted"
    :engaged/expanded "Expanded"
-   :engaged/pinned "Pinned"})
+   :engaged/pinned "Pinned"
+   :engaged/posted "Posted"})
 
 (def media-labels
   {:media/text "Text"
@@ -736,6 +789,7 @@
              :ui/panel-open? false)
       (js/setTimeout
        (fn []
+         (detect-current-user-slug!)
          (scan-visible-posts!)
          (ensure-nav-button!))
        1500))))
@@ -796,7 +850,9 @@
   (attach-popstate-handler!)
   (start-url-polling!)
   (ensure-nav-button!)
-  (js/setTimeout scan-visible-posts! 1000)
+  (js/setTimeout (fn []
+                   (detect-current-user-slug!)
+                   (scan-visible-posts!)) 1000)
   (selector-health-check!)
   (js/console.log "[epupp:tracker] Initialized")
   :initialized)

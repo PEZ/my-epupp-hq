@@ -4,11 +4,12 @@ Tracks posts you engage with on LinkedIn so you can find them later. Runs as an 
 
 ## What It Does
 
-The tracker silently observes your LinkedIn feed and records posts you interact with — likes, comments, reposts, and "See more" expansions. A star icon in LinkedIn's nav bar opens a side panel where you can search, filter, and revisit tracked posts. Posts are always sorted by most recently engaged first. You can also pin important posts to protect them from automatic pruning.
+The tracker silently observes your LinkedIn feed and records posts you interact with — likes, comments, reposts, and "See more" expansions. It also automatically detects and tracks your own posts. A star icon in LinkedIn's nav bar opens a side panel where you can search, filter, and revisit tracked posts. Posts are always sorted by most recently engaged first. You can also pin important posts to protect them from automatic pruning.
 
 ### User Capabilities
 
 - **Automatic tracking** — Engage with a post (like, comment, repost, expand) and it's captured with author info, text preview, media type, and timestamps
+- **Own post detection** — Your posts are automatically tracked with `:engaged/posted` when they appear in the feed, using the post's creation time as the engagement timestamp. Already-tracked own posts get the engagement added without updating their last-engaged date
 - **Pin posts** — Star button injected next to each post's overflow menu; pinned posts survive pruning
 - **Search** — Case-insensitive substring match across author name, headline, and post text
 - **Filter** — Toggle by engagement type
@@ -37,6 +38,14 @@ The file flows top-to-bottom through logical layers: state definitions → selec
 
 Instead of inspecting button classes or IDs (fragile), the script pattern-matches on `aria-label` text like `"React"`, `"Comment"`, `"Repost"`. Accessibility labels are semantically stable — they change less often than CSS classes. The click-patterns data structure makes adding new engagement types a one-line addition.
 
+### Why `track-own-post` Is Separate from `track-post`
+
+Own-post tracking has fundamentally different timestamp semantics: `track-post` always updates `:post/last-engaged` to `now` (the moment you clicked), while `track-own-post` uses the post's creation time for new posts and never bumps last-engaged for already-tracked posts. The different trigger (passive feed observation vs active click) and timestamp contract warrant a separate pure function rather than conditionals inside `track-post`.
+
+### Why Profile Slug Comparison for Own-Post Detection
+
+The current user is identified by extracting the profile slug from the sidebar profile link (`:sel/me-profile-link`) and comparing it against each post's author URL. Slugs are normalized to lowercase for comparison, with nil guards to prevent false positives when profile URLs are missing. The slug is detected lazily (on init and navigation) and cached in `!state` as `:nav/current-user-slug`.
+
 ### Why an Iframe for localStorage
 
 LinkedIn overrides `Storage.prototype` methods to intercept and potentially restrict access. The script creates a hidden iframe to get a clean window context, captures the *original* `setItem`/`getItem`/`removeItem` from the unmodified `Storage.prototype`, and uses `.call()` to invoke them on `js/localStorage`. Without this, tracked posts may silently fail to persist.
@@ -62,6 +71,7 @@ The storage key evolved from `"epupp:linkedin-tracker"` to the namespaced `"epup
 - **LinkedIn DOM changes** — The biggest maintenance burden. The `selectors` map centralizes all CSS selectors with fallback chains. When LinkedIn ships a DOM change, fallback selectors absorb the impact temporarily, but console warnings (`[epupp:tracker] Fell to secondary selector`) signal that primaries need updating.
 - **Timing assumptions** — The nav bar might not exist at `document-idle` on slow connections. The 1.5s delay after navigation and 150ms mutation debounce are tuned for typical LinkedIn rendering speed. If LinkedIn's rendering pipeline changes significantly, these may need adjustment.
 - **Promoted post detection** — Relies on URN format (`urn:li:activity:*`) and "promot" keyword in timestamp text. If LinkedIn changes how it labels promoted content, sponsored posts could leak into the tracker.
+- **Current-user detection** — Depends on the sidebar profile link (`:sel/me-profile-link`). The sidebar may not render on all page types (messaging, settings). Detection is retried on navigation, but own posts seen before detection succeeds won't be tagged until the next page visit.
 
 ## Maintenance Recipes
 
@@ -77,6 +87,8 @@ The storage key evolved from `"epupp:linkedin-tracker"` to the namespaced `"epup
 1. Add an entry to `click-patterns` — specify `:source` (`:btn-aria` or `:text`), `:pattern` (regex), and `:engagement` keyword
 2. Add the display label to `engagement-labels`
 3. Everything else (tracking, persistence, filtering, panel display) flows through automatically
+
+Note: `:engaged/posted` is not a click-pattern — it's detected passively by `scan-post!` when the post author matches the current user. Adding similar passive engagement types would follow the `own-post?` / `track-own-post` pattern rather than `click-patterns`.
 
 ### Adding a New Media Type
 
@@ -100,8 +112,12 @@ Click a button, then check `(:tracker/index @!state)` — the URN should appear.
 **State changes but UI doesn't update?**
 Verify the atom watch is firing — `(teardown!)` then `(init!)` to re-attach. Check that the panel container element is still in the DOM.
 
+**Own posts not being detected?**
+Check `(:nav/current-user-slug @!state)` — if `nil`, the sidebar profile link wasn't found. Navigate to the feed and check `(q-doc :sel/me-profile-link)`. If the selector is stale, update it in the `selectors` map. Once the slug is detected, posts will be tagged on subsequent scans.
+
 **General diagnostics:**
 - `@!state` — full state snapshot
 - `@!resources` — which listeners/observers are attached
+- `(:nav/current-user-slug @!state)` — detected current user
 - `(teardown!)` then `(init!)` — full restart without page reload
 - Console logs are prefixed with `[epupp:tracker]`
