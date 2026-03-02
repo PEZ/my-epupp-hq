@@ -17,7 +17,6 @@
          :ui/filter-engagement nil
          :ui/sort-by      :sort/last-engaged
          :ui/sort-order   :desc
-         :ui/confirm-clear? false
          :nav/seen-urns   #{}}))
 
 (defonce !resources (atom {}))
@@ -128,11 +127,13 @@
    :raw/article-subtitle (some-> (q post-el :sel/article-card) (q :sel/article-subtitle) .-textContent string/trim)
    :raw/article-url (some-> (q post-el :sel/article-card) (q :sel/article-link) (.getAttribute "href"))
    :raw/has-video? (some? (q post-el :sel/video))
+   :raw/video-poster-url (some-> (q post-el :sel/video) (.getAttribute "poster"))
    :raw/has-document? (some? (q post-el :sel/document))
    :raw/has-carousel? (some? (q post-el :sel/carousel))
    :raw/has-poll? (some? (q post-el :sel/poll))
    :raw/has-image? (some? (q post-el :sel/image-container))
    :raw/image-url (some-> (q post-el :sel/image-container) (.querySelector "img") (.getAttribute "src"))
+   :raw/article-image-url (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
    :raw/has-reshare? (some? (.querySelector post-el ".update-components-mini-update-v2"))})
 
 ;; Pure Transforms (testable without DOM)
@@ -166,14 +167,16 @@
              :post/author-profile-url (:raw/author-profile-url raw-data)
              :post/text-preview (text-preview (:raw/text raw-data))
              :post/media-type media-type
-             :post/media-image-url (:raw/image-url raw-data)
+             :post/media-image-url (or (:raw/video-poster-url raw-data)
+                                       (:raw/image-url raw-data))
              :post/reshare? (:raw/has-reshare? raw-data)
              :post/engagements #{}
              :post/pinned? false}
       (= media-type :media/article)
       (assoc :post/article-title (:raw/article-title raw-data)
              :post/article-subtitle (:raw/article-subtitle raw-data)
-             :post/article-url (:raw/article-url raw-data)))))
+             :post/article-url (:raw/article-url raw-data)
+             :post/article-image-url (:raw/article-image-url raw-data)))))
 
 (defn promoted-post? [{:keys [raw/urn raw/timestamp-text]}]
   (or (not (activity-urn? urn))
@@ -250,13 +253,7 @@
             (update :tracker/posts #(apply dissoc % unpinned-oldest))
             (update :tracker/index #(vec (remove remove-set %))))))))
 
-(defn clear-unpinned [state]
-  (let [pinned-urns (set (keep (fn [[urn post]]
-                                 (when (:post/pinned? post) urn))
-                               (:tracker/posts state)))]
-    (-> state
-        (update :tracker/posts select-keys pinned-urns)
-        (assoc :tracker/index (vec (filter pinned-urns (:tracker/index state)))))))
+
 
 (defn make-debounced [delay-ms f]
   (let [!timeout (atom nil)]
@@ -355,28 +352,41 @@
                      :padding "0" :width "48px" :height "52px" :justify-content "center"
                      :color (if open? "#0a66c2" "rgba(0,0,0,0.6)")}
              :on {:click (fn [e] (.stopPropagation e)
-                               (swap! !state update :ui/panel-open? not))}}
+                           (swap! !state update :ui/panel-open? not))}}
     [:span {:style {:position "relative" :display "flex" :align-items "center"
-                    :justify-content "center"}}
+                    :justify-content "center"}
+            :title (str post-count " posts tracked")}
      [:svg {:viewBox "0 0 24 24" :width "24" :height "24" :fill "currentColor"
             :xmlns "http://www.w3.org/2000/svg"}
-      [:path {:d "M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"}]]
-     (when (pos? post-count)
-       [:span {:style {:position "absolute" :top "-4px" :right "-6px"
-                       :background "#434343" :color "white" :border-radius "50%"
-                       :font-size "10px" :min-width "16px" :height "16px"
-                       :display "flex" :align-items "center" :justify-content "center"
-                       :font-weight "bold"}}
-        (str post-count)])]
-    [:span {:style {:font-size "12px" :color "inherit" :line-height "1"}} "Tracker"]]])
+      [:path {:d "M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"}]]]
+    [:span {:style {:font-size "12px" :color "inherit" :line-height "1"
+                    :display "inline-flex" :align-items "center" :gap "2px"}}
+     "Tracker"
+     [:span {:style (if open?
+                      {:border-left "4px solid transparent"
+                       :border-right "4px solid transparent"
+                       :border-bottom "5px solid currentColor"}
+                      {:border-left "4px solid transparent"
+                       :border-right "4px solid transparent"
+                       :border-top "5px solid currentColor"})}]]]])
+
+(defn- find-me-nav-item [nav-list]
+  (some (fn [item]
+          (when (or (q item :sel/user-avatar)
+                    (re-find #"(?i)^\s*Me\s*$" (.-textContent item)))
+            item))
+        (qa nav-list :sel/nav-items)))
 
 (defn ensure-nav-button! []
   (when-let [nav-list (q-doc :sel/nav-items-list)]
     (let [mount-el (or (js/document.getElementById "epupp-tracker-nav-mount")
-                       (let [el (js/document.createElement "div")]
+                       (let [el (js/document.createElement "div")
+                             me-item (find-me-nav-item nav-list)]
                          (set! (.-id el) "epupp-tracker-nav-mount")
                          (set! (.. el -style -display) "contents")
-                         (.appendChild nav-list el)
+                         (if me-item
+                           (.insertBefore nav-list el me-item)
+                           (.appendChild nav-list el))
                          (swap! !resources assoc :resource/nav-mount el)
                          el))]
       (r/render mount-el
@@ -385,30 +395,37 @@
 
 (defn inject-pin-button! [post-el urn]
   (when-not (.querySelector post-el "[data-epupp-pin]")
-    (let [action-bar (q post-el :sel/social-action-bar)]
-      (when action-bar
-        (let [btn (js/document.createElement "button")
-              pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
-          (.setAttribute btn "data-epupp-pin" urn)
-          (set! (.. btn -style -cssText)
-                "background: none; border: 1px solid #ccc; border-radius: 16px; cursor: pointer; padding: 4px 12px; font-size: 12px; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;")
-          (set! (.-textContent btn) (if pinned? "\u2605 Pinned" "\u2606 Pin"))
-          (.addEventListener btn "click"
-                             (fn [e]
-                               (.stopPropagation e)
-                               (let [now (.toISOString (js/Date.))
-                                     raw (scrape-post-element post-el)
-                                     snapshot (raw->post-snapshot raw now)]
-                                 (swap! !state (fn [s]
-                                                 (let [s (if (get-in s [:tracker/posts urn])
-                                                           s
-                                                           (track-post s urn snapshot :engaged/pinned now))]
-                                                   (toggle-pin s urn))))
-                                 (let [now-pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
-                                   (set! (.-textContent btn) (if now-pinned? "\u2605 Pinned" "\u2606 Pin"))
-                                   (js/console.log "[epupp:tracker] Pin toggled:" urn now-pinned?))
-                                 (schedule-save!))))
-          (.appendChild action-bar btn))))))
+    (let [overflow-btn (q post-el :sel/overflow-menu)
+          target-container (when overflow-btn (.-parentElement overflow-btn))
+          btn (js/document.createElement "button")
+          pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
+      (when target-container
+        (.setAttribute btn "data-epupp-pin" urn)
+        (set! (.. btn -style -cssText)
+              "background: none; border: none; cursor: pointer; padding: 4px; font-size: 16px; line-height: 1; color: #666; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; width: 28px; height: 28px;")
+        (set! (.-textContent btn) (if pinned? "\u2605" "\u2606"))
+        (when pinned? (set! (.. btn -style -color) "#f59e0b"))
+        (.addEventListener btn "mouseenter"
+                           (fn [_] (set! (.. btn -style -background) "rgba(0,0,0,0.08)")))
+        (.addEventListener btn "mouseleave"
+                           (fn [_] (set! (.. btn -style -background) "none")))
+        (.addEventListener btn "click"
+                           (fn [e]
+                             (.stopPropagation e)
+                             (.preventDefault e)
+                             (let [now (.toISOString (js/Date.))
+                                   raw (scrape-post-element post-el)
+                                   snapshot (raw->post-snapshot raw now)]
+                               (swap! !state (fn [s]
+                                               (let [s (if (get-in s [:tracker/posts urn])
+                                                         s
+                                                         (track-post s urn snapshot :engaged/pinned now))]
+                                                 (toggle-pin s urn))))
+                               (let [now-pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
+                                 (set! (.-textContent btn) (if now-pinned? "\u2605" "\u2606"))
+                                 (set! (.. btn -style -color) (if now-pinned? "#f59e0b" "#666")))
+                               (schedule-save!))))
+        (.insertBefore target-container btn overflow-btn)))))
 
 (defn scan-post! [post-el]
   (let [raw (scrape-post-element post-el)]
@@ -522,9 +539,65 @@
          (map #(subs % 0 1))
          (string/join ""))))
 
-(defn post-card [{:keys [post/urn post/author-name post/author-avatar-url
-                         post/author-headline post/text-preview post/media-type
-                         post/engagements post/pinned? post/last-engaged]}]
+(defn extract-domain [url]
+  (when (and url (string? url))
+    (try
+      (.-hostname (js/URL. url))
+      (catch :default _ nil))))
+
+(defn media-thumbnail [{:keys [post/media-type post/media-image-url]}]
+  (case media-type
+    :media/image
+    (when media-image-url
+      [:img {:src media-image-url
+             :style {:width "100%" :max-height "160px" :border-radius "6px"
+                     :object-fit "cover" :margin-bottom "6px"}}])
+    :media/video
+    (when media-image-url
+      [:div {:style {:position "relative" :width "100%" :max-height "160px"
+                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+       [:img {:src media-image-url
+              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+       [:div {:style {:position "absolute" :inset "0" :display "flex"
+                      :align-items "center" :justify-content "center"
+                      :background "rgba(0,0,0,0.3)"}}
+        [:span {:style {:color "white" :font-size "28px"}} "\u25B6"]]])
+    :media/document
+    [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                   :background "#f0f0f0" :display "flex" :align-items "center"
+                   :justify-content "center" :margin-bottom "6px"}}
+     [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCC4 Document"]]
+    :media/carousel
+    [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                   :background "#f0f0f0" :display "flex" :align-items "center"
+                   :justify-content "center" :margin-bottom "6px"}}
+     [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDFA0 Carousel"]]
+    nil))
+
+(defn article-mini-card [{:keys [post/article-title post/article-url
+                                  post/article-image-url post/media-image-url]}]
+  (let [domain (extract-domain article-url)
+        img-url (or article-image-url media-image-url)]
+    [:div {:style {:display "flex" :gap "8px" :padding "8px"
+                   :background "#f8f9fa" :border-radius "6px"
+                   :border "1px solid #e8e8e8" :margin-bottom "6px"}}
+     (when img-url
+       [:img {:src img-url
+              :style {:width "48px" :height "48px" :border-radius "4px"
+                      :object-fit "cover" :flex-shrink "0"}}])
+     [:div {:style {:flex "1" :min-width "0"}}
+      (when article-title
+        [:div {:style {:font-size "12px" :font-weight "600" :color "#333"
+                       :white-space "nowrap" :overflow "hidden"
+                       :text-overflow "ellipsis"}}
+         article-title])
+      (when domain
+        [:div {:style {:font-size "10px" :color "#999" :margin-top "2px"}}
+         domain])]]))
+
+(defn post-card [{:as post :keys [post/urn post/author-name post/author-avatar-url
+                                  post/author-headline post/text-preview post/media-type
+                                  post/engagements post/pinned? post/last-engaged]}]
   [:div {:replicant/key urn
          :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
                  :background (if pinned? "#fffde7" "white")
@@ -558,6 +631,11 @@
                     :display "-webkit-box" :-webkit-line-clamp "2"
                     :-webkit-box-orient "vertical" :overflow "hidden"}}
       text-preview])
+   ;; Media display (feed-like)
+   (media-thumbnail post)
+   ;; Article mini-card
+   (when (= media-type :media/article)
+     (article-mini-card post))
    ;; Badges
    [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
     (when media-type
@@ -572,7 +650,7 @@
 
 (defn panel-view [state]
   (let [{:keys [tracker/posts ui/search-text ui/filter-engagement
-                ui/sort-by ui/sort-order ui/confirm-clear?]} state
+                ui/sort-by ui/sort-order]} state
         filtered (filter-posts posts state)
         sorted (sort-posts filtered sort-by sort-order)
         post-count (count posts)]
@@ -617,8 +695,8 @@
       [:span (str (count sorted) " shown")]
       [:div {:style {:display "flex" :gap "8px" :align-items "center"}}
        [:select {:value (name sort-by)
-                 :style {:font-size "11px" :padding "2px" :border "1px solid #ccc"
-                         :border-radius "4px"}
+                 :style {:font-size "11px" :padding "2px 18px 2px 4px" :border "1px solid #ccc"
+                         :border-radius "4px" :appearance "auto" :background "white"}
                  :on {:change (fn [e]
                                 (swap! !state assoc :ui/sort-by
                                        (keyword "sort" (.. e -target -value))))}}
@@ -632,28 +710,12 @@
                                       #(if (= % :desc) :asc :desc)))}}
         (if (= sort-order :desc) "\u25bc" "\u25b2")]]]
      ;; Post list
-     [:div {:style {:flex "1" :overflow-y "auto"}}
+     [:div {:style {:flex "1" :overflow-y "auto" :overscroll-behavior "contain"}}
       (if (seq sorted)
         (for [post sorted]
           (post-card post))
         [:div {:style {:padding "32px" :text-align "center" :color "#999"}}
-         "No tracked posts yet"])]
-     ;; Footer
-     [:div {:style {:padding "8px 16px" :border-top "1px solid #e0e0e0"
-                    :font-size "11px" :color "#666" :display "flex"
-                    :justify-content "space-between" :align-items "center"}}
-      [:span "Epupp Tracker"]
-      [:button {:style {:background (if confirm-clear? "#e53935" "#f5f5f5")
-                        :color (if confirm-clear? "white" "#666")
-                        :border "none" :border-radius "4px" :padding "4px 8px"
-                        :cursor "pointer" :font-size "11px"}
-                :on {:click (fn [_]
-                              (if confirm-clear?
-                                (do (swap! !state (fn [s] (-> s clear-unpinned (assoc :ui/confirm-clear? false))))
-                                    (schedule-save!))
-                                (do (swap! !state assoc :ui/confirm-clear? true)
-                                    (js/setTimeout #(swap! !state assoc :ui/confirm-clear? false) 3000))))}}
-       (if confirm-clear? "Click again to confirm" "Clear unpinned")]]]))
+         "No tracked posts yet"])]]))
 
 (defn render-panel! []
   (let [container (:resource/panel-container @!resources)]
