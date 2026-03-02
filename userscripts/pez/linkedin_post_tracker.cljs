@@ -141,8 +141,8 @@
 (defn text-preview [raw-text]
   (when raw-text
     (let [trimmed (string/trim raw-text)]
-      (if (> (count trimmed) 200)
-        (str (subs trimmed 0 200) "\u2026")
+      (if (> (count trimmed) 500)
+        (str (subs trimmed 0 500) "\u2026")
         trimmed))))
 
 (defn detect-media-type [{:keys [raw/has-article? raw/has-video? raw/has-document?
@@ -344,8 +344,8 @@
   (detach-listener! js/document.body "click" :resource/engagement-handler {:capture? true}))
 
 (defn nav-button-view [{:keys [post-count open?]}]
-  [:li {:id "epupp-tracker-nav-btn"
-        :class "global-nav__primary-item"}
+  [:li.global-nav__primary-item {:id "epupp-tracker-nav-btn"
+                                 :style {:margin-left "1rem"}}
    [:button {:type "button"
              :style {:background "none" :border "none" :cursor "pointer"
                      :display "flex" :flex-direction "column" :align-items "center"
@@ -362,13 +362,9 @@
     [:span {:style {:font-size "12px" :color "inherit" :line-height "1"
                     :display "inline-flex" :align-items "center" :gap "2px"}}
      "Tracker"
-     [:span {:style (if open?
-                      {:border-left "4px solid transparent"
-                       :border-right "4px solid transparent"
-                       :border-bottom "5px solid currentColor"}
-                      {:border-left "4px solid transparent"
-                       :border-right "4px solid transparent"
-                       :border-top "5px solid currentColor"})}]]]])
+     [:span {:style {:border-left "5px solid transparent"
+                     :border-right "5px solid transparent"
+                     :border-top "6px solid currentColor"}}]]]])
 
 (defn- find-me-nav-item [nav-list]
   (some (fn [item]
