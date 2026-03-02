@@ -1,6 +1,6 @@
 {:epupp/script-name "pez/linkedin_post_tracker.cljs"
  :epupp/auto-run-match "https://www.linkedin.com/*"
- :epupp/description "Track posts you engage with on LinkedIn and find them later"
+ :epupp/description "Tracks posts you engage with on LinkedIn so that you can easily find them later"
  :epupp/run-at "document-idle"
  :epupp/inject ["scittle://replicant.js"]}
 
@@ -688,7 +688,7 @@
      ;; Sort controls
      [:div {:style {:padding "4px 16px" :display "flex" :justify-content "space-between"
                     :align-items "center" :font-size "11px" :color "#666"}}
-      [:span (str (count sorted) " shown")]
+      [:span (str (count sorted) " matching posts")]
       [:div {:style {:display "flex" :gap "8px" :align-items "center"}}
        [:select {:value (name sort-by)
                  :style {:font-size "11px" :padding "2px 18px 2px 4px" :border "1px solid #ccc"
