@@ -41,7 +41,7 @@
    :sel/repost-button     ["button.social-reshare-button"]
    :sel/overflow-menu     [".feed-shared-control-menu__trigger" "[data-view-name='feed-control-menu']"]
    :sel/social-action-bar [".feed-shared-social-action-bar"]
-   :sel/article-card      ["article.update-components-article" ".update-components-article-first-party"]
+   :sel/article-card      ["article.update-components-article" ".update-components-article-first-party" "[data-view-name='feed-article']"]
    :sel/article-title     [".update-components-article__title" ".update-components-article-first-party__title"]
    :sel/article-subtitle  ["[class*='update-components-article__subtitle']" ".update-components-article-first-party__subtitle"]
    :sel/article-link      ["a[aria-label]"]
@@ -172,9 +172,16 @@
    :raw/text (some-> (q post-el :sel/post-text) .-textContent)
    :raw/timestamp-text (some-> (q post-el :sel/timestamp) .-textContent)
    :raw/has-article? (some? (q post-el :sel/article-card))
-   :raw/article-title (some-> (q post-el :sel/article-card) (q :sel/article-title) .-textContent string/trim)
-   :raw/article-subtitle (some-> (q post-el :sel/article-card) (q :sel/article-subtitle) .-textContent string/trim)
-   :raw/article-url (some-> (q post-el :sel/article-card) (q :sel/article-link) (.getAttribute "href"))
+   :raw/article-title (let [card (q post-el :sel/article-card)]
+                        (or (some-> card (q :sel/article-title) .-textContent string/trim)
+                            (some-> card (.querySelector "span") .-textContent string/trim)))
+   :raw/article-subtitle (let [card (q post-el :sel/article-card)]
+                           (or (some-> card (q :sel/article-subtitle) .-textContent string/trim)
+                               (some-> card (.querySelectorAll "p") last .-textContent string/trim)))
+   :raw/article-url (let [card (q post-el :sel/article-card)]
+                      (or (some-> card (q :sel/article-link) (.getAttribute "href"))
+                          (when (= "A" (some-> card .-tagName))
+                            (.getAttribute card "href"))))
    :raw/has-video? (some? (q post-el :sel/video))
    :raw/video-poster-url (or (some-> (q post-el :sel/video) (.getAttribute "poster"))
                              (some-> (q post-el :sel/video) .-parentElement (.querySelector "img") (.getAttribute "src")))
