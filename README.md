@@ -2,6 +2,14 @@
 
 A workspace for live tampering the web from your editor and/or AI agent harness, using [Epupp](https://github.com/PEZ/epupp).
 
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=CuEWN5yYVa8">
+    <img src="https://img.youtube.com/vi/CuEWN5yYVa8/maxresdefault.jpg" alt="Epupp Demo Video">
+  </a>
+  <br>
+  <sup><a href="https://www.youtube.com/watch?v=CuEWN5yYVa8">▶ Watch the demo on YouTube</a></sup>
+</div>
+
 ## What is Epupp?
 
 Epupp is a web browser extension, a bit similar to [Tampermonkey](https://www.tampermonkey.net/), that allows you to use userscripts to tamper with web pages you visit so that they behave as you want them. Unlike Tampermonkey, Epupp also starts a scripting REPL inside the page, exposing it to your editor and/or AI agent over the [nREPL](https://nrepl.org/) protocol. This lets you use your favorite tools to develop userscripts, and to modify/inspect web pages completely ad-hoc as you need it.
