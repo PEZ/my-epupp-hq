@@ -28,18 +28,18 @@
 
 (def selectors ; Selector Registry
   {:sel/feed-container    [".scaffold-finite-scroll__content" "main"]
-   :sel/post-container    ["[data-urn]"]
+   :sel/post-container    ["[data-urn]" "[data-view-name='content-search-result']" "[data-view-name='feed-full-update']"]
    :sel/author-name       [".update-components-actor__single-line-truncate [aria-hidden='true']"]
    :sel/author-headline   [".update-components-actor__description [aria-hidden='true']"]
    :sel/author-avatar     [".update-components-actor__avatar-image"]
-   :sel/author-link       [".update-components-actor__meta-link"]
-   :sel/post-text         [".update-components-text" ".feed-shared-update-v2__description"]
+   :sel/author-link       [".update-components-actor__meta-link" "[data-view-name='feed-actor-image']"]
+   :sel/post-text         [".update-components-text" ".feed-shared-update-v2__description" "[data-view-name='feed-commentary']"]
    :sel/timestamp         [".update-components-actor__sub-description [aria-hidden='true']"]
    :sel/like-button       ["button[aria-label*='React']"]
-   :sel/comment-button    ["button[aria-label='Comment']"]
+   :sel/comment-button    ["button[aria-label='Comment']" "[data-view-name='feed-comment-button']"]
    :sel/see-more          ["button.see-more" ".feed-shared-inline-show-more-text__see-more-less-toggle"]
    :sel/repost-button     ["button.social-reshare-button"]
-   :sel/overflow-menu     [".feed-shared-control-menu__trigger"]
+   :sel/overflow-menu     [".feed-shared-control-menu__trigger" "[data-view-name='feed-control-menu']"]
    :sel/social-action-bar [".feed-shared-social-action-bar"]
    :sel/article-card      ["article.update-components-article"]
    :sel/article-title     [".update-components-article__title"]
@@ -51,8 +51,8 @@
    :sel/carousel          [".feed-shared-carousel"]
    :sel/poll              [".feed-shared-poll"]
    :sel/nav-bar           [".global-nav__nav" "#global-nav nav"]
-   :sel/nav-items-list    [".global-nav__primary-items"]
-   :sel/nav-items         [".global-nav__primary-item"]
+   :sel/nav-items-list    [".global-nav__primary-items" "header nav ul"]
+   :sel/nav-items         [".global-nav__primary-item" "header nav ul > li"]
    :sel/user-avatar       ["img.global-nav__me-photo"]
    :sel/me-profile-link   ["a.profile-card-profile-link"]})
 
@@ -100,6 +100,33 @@
   (and (string? urn)
        (string/starts-with? urn "urn:li:activity:")))
 
+(defn extract-urn-from-element
+  "Extract an activity URN from an element. Checks data-urn attribute first,
+   then searches links for activity/share URN patterns in hrefs."
+  [el]
+  (or (.getAttribute el "data-urn")
+      (some (fn [link]
+              (when-let [href (.getAttribute link "href")]
+                (when-let [match (re-find #"urn(?:%3A|:)li(?:%3A|:)activity(?:%3A|:)(\d+)" href)]
+                  (str "urn:li:activity:" (second match)))))
+            (.querySelectorAll el "a[href]"))))
+
+(defn find-post-container
+  "Find the containing post element from a target element.
+   Tries [data-urn] first (feed page), then search page containers."
+  [el]
+  (or (.closest el "[data-urn]")
+      (.closest el "[data-view-name='content-search-result']")
+      (.closest el "[data-view-name='feed-full-update']")))
+
+(defn extract-author-from-control-menu
+  "Extract author name from the control menu aria-label as fallback.
+   Pattern: 'Open control menu for post by Author Name'"
+  [container]
+  (when-let [menu (.querySelector container "[data-view-name='feed-control-menu']")]
+    (when-let [label (.getAttribute menu "aria-label")]
+      (second (re-find #"post by (.+)$" label)))))
+
 (defn selector-health-check! []
   (let [results (into {}
                       (map (fn [[k _]] [k (some? (q-doc k))]))
@@ -114,8 +141,9 @@
 ;; Scraping Boundary (impure — only place touching DOM for post data)
 
 (defn scrape-post-element [post-el]
-  {:raw/urn (.getAttribute post-el "data-urn")
-   :raw/author-name (some-> (q post-el :sel/author-name) .-textContent string/trim)
+  {:raw/urn (extract-urn-from-element post-el)
+   :raw/author-name (or (some-> (q post-el :sel/author-name) .-textContent string/trim)
+                        (extract-author-from-control-menu post-el))
    :raw/author-headline (some-> (q post-el :sel/author-headline) .-textContent string/trim)
    :raw/author-avatar-url (some-> (q post-el :sel/author-avatar) (.getAttribute "src"))
    :raw/author-profile-url (some-> (q post-el :sel/author-link) (.getAttribute "href"))
@@ -193,7 +221,7 @@
          (= current-user-slug author-slug))))
 
 (defn find-post-urn [el]
-  (when-let [post-el (.closest el "[data-urn]")]
+  (when-let [post-el (find-post-container el)]
     (let [raw (scrape-post-element post-el)]
       (when (and (activity-urn? (:raw/urn raw))
                  (not (promoted-post? raw)))
@@ -361,7 +389,7 @@
     (let [target (.-target e)]
       (when-let [engagement (interpret-click (extract-click-context target))]
         (when-let [urn (find-post-urn target)]
-          (let [post-el (.closest target "[data-urn]")
+          (let [post-el (find-post-container target)
                 now (.toISOString (js/Date.))
                 raw (scrape-post-element post-el)
                 snapshot (raw->post-snapshot raw now)]
