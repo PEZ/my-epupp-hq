@@ -22,7 +22,7 @@ The tracker silently observes your LinkedIn feed and records posts you interact 
 
 1. **Data-oriented** — Flat, namespaced state in a centralized atom. EDN serialization. Pure transform functions. The namespaced keywords (`:tracker/posts`, `:ui/panel-open?`, `:post/media-type`, `:engaged/liked`, etc.) are self-documenting — inspect `!state`'s `defonce` for the full shape.
 2. **Imperative shell, functional core** — A single scraping boundary converts DOM into `raw/*` data maps. Everything downstream is pure Clojure: `raw/*` → `post/*` snapshots via pure transforms, state mutation functions that return new state, and view functions that are pure hiccup.
-3. **Resilient to change** — Selector fallback chains, pattern-matching on semantic text (aria-labels), and storage key migration.
+3. **Resilient to change** — Selector fallback chains, pattern-matching on semantic text (aria-labels), multi-document awareness, and storage key migration.
 
 ### Two-Atom Separation
 
@@ -30,7 +30,7 @@ The tracker silently observes your LinkedIn feed and records posts you interact 
 
 ### Code Organization
 
-The file flows top-to-bottom through logical layers: state definitions → selector registry → DOM query helpers → scraping boundary (the one impure data-extraction point) → pure transforms → engagement pattern-matching → state mutation functions (pure, return new state) → persistence → DOM observation → navigation detection → Replicant UI components (pure hiccup) → event handler wiring → lifecycle (`init!`/`teardown!`).
+The file flows top-to-bottom through logical layers: state definitions → selector registry → DOM query helpers (including cross-document resolution) → scraping boundary (the one impure data-extraction point) → pure transforms → engagement pattern-matching → state mutation functions (pure, return new state) → persistence → DOM observation (main + iframe) → navigation detection → Replicant UI components (pure hiccup) → event handler wiring → lifecycle (`init!`/`teardown!`).
 
 ## Design Decisions & Rationale
 
@@ -58,6 +58,20 @@ Replicant is used for UI the script fully owns (nav button, tracker panel) — t
 
 LinkedIn is a partial SPA. Browser back/forward fires `popstate`, but LinkedIn's internal client-side routing often doesn't. Polling `window.location` every 2s catches the rest. Both converge on the same navigation handler that resets the page-view state and rescans.
 
+### Why Multi-Document Awareness (Preload Iframe)
+
+LinkedIn uses a `/preload/` iframe that can become the visible page content after certain navigation transitions — notably when navigating from search results back to the feed. When this happens, the nav bar, feed posts, and interactive elements all live in the iframe's document rather than the main `document`. A regular `document.querySelector` will not find them.
+
+The script addresses this through several mechanisms:
+
+- **`preload-iframe-doc`** — Locates the iframe's `contentDocument` (same-origin, so accessible)
+- **`q-doc`** — Falls through to the iframe document when the main document yields no match
+- **`qa-doc`** — Concatenates results from both documents (important because the main document may contain stale placeholder elements alongside the iframe's live content)
+- **`ownerDocument`** — When injecting elements (nav button mount, pin buttons), the script uses `(.-ownerDocument target-element)` to create elements in the correct document context. An element created with `document.createElement` cannot be inserted into an iframe's DOM without adoption.
+- **`ensure-iframe-observers!`** — Monitors for the iframe's appearance and attaches a dedicated `MutationObserver` and click handler to its body. Tracks the observed body reference to avoid duplicate attachment when the iframe is replaced.
+
+This architecture is only triggered by the search-to-feed navigation path. Other LinkedIn views (messaging, notifications, profile) use stable SPA re-renders within the main document.
+
 ### Why MutationObserver → RAF → setTimeout
 
 `MutationObserver` fires for every DOM node added — LinkedIn renders 20+ nodes per post. If we scanned on every callback, we'd process the feed 100+ times per second during scrolling. The pipeline collapses this: RAF batches callbacks to the next paint frame, then a 150ms timeout lets LinkedIn's lazy-load logic finish. Result: ~2 scans per feed refresh instead of hundreds.
@@ -69,6 +83,7 @@ The storage key evolved from `"epupp:linkedin-tracker"` to the namespaced `"epup
 ## Known Fragilities
 
 - **LinkedIn DOM changes** — The biggest maintenance burden. The `selectors` map centralizes all CSS selectors with fallback chains. When LinkedIn ships a DOM change, fallback selectors absorb the impact temporarily, but console warnings (`[epupp:tracker] Fell to secondary selector`) signal that primaries need updating.
+- **Preload iframe lifecycle** — The `/preload/` iframe may change behavior across LinkedIn updates. The script relies on `iframe[src='/preload/']` to locate it and same-origin access to its `contentDocument`. If LinkedIn changes the iframe's `src`, path, or applies cross-origin isolation, multi-document support will break. Symptoms: nav button and pin buttons disappear after navigating from search, engagements stop being tracked.
 - **Timing assumptions** — The nav bar might not exist at `document-idle` on slow connections. The 1.5s delay after navigation and 150ms mutation debounce are tuned for typical LinkedIn rendering speed. If LinkedIn's rendering pipeline changes significantly, these may need adjustment.
 - **Promoted post detection** — Relies on URN format (`urn:li:activity:*`) and "promot" keyword in timestamp text. If LinkedIn changes how it labels promoted content, sponsored posts could leak into the tracker.
 - **Current-user detection** — Depends on the sidebar profile link (`:sel/me-profile-link`). The sidebar may not render on all page types (messaging, settings). Detection is retried on navigation, but own posts seen before detection succeeds won't be tagged until the next page visit.
@@ -104,7 +119,7 @@ Follow the existing pattern: change the storage key constant, add a fallback rea
 ## Debugging
 
 **Pin buttons not appearing?**
-Run `(selector-health-check!)`. Check if the post passes activity URN validation and promoted-post filtering. Inspect `(:nav/seen-urns @!state)` to see if the post was already processed this page load.
+Run `(selector-health-check!)`. Check if the post passes activity URN validation and promoted-post filtering. Inspect `(:nav/seen-urns @!state)` to see if the post was already processed this page load. If pins appear on some posts but not after search navigation, verify that the preload iframe's posts are being scanned — check `(some-> (preload-iframe-doc) .-body)` returns the iframe body and `(:resource/iframe-observed-body @!resources)` matches it.
 
 **Engagements not being tracked?**
 Click a button, then check `(:tracker/index @!state)` — the URN should appear. If not, the click-pattern regex may not match. Test: click a button and inspect what aria-label the button has.
@@ -119,5 +134,6 @@ Check `(:nav/current-user-slug @!state)` — if `nil`, the sidebar profile link 
 - `@!state` — full state snapshot
 - `@!resources` — which listeners/observers are attached
 - `(:nav/current-user-slug @!state)` — detected current user
+- `(:resource/iframe-observed-body @!resources)` — whether the preload iframe is being observed
 - `(teardown!)` then `(init!)` — full restart without page reload
 - Console logs are prefixed with `[epupp:tracker]`
