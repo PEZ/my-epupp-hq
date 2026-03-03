@@ -25,12 +25,13 @@
 (defn docs-sync
   "Sync docs from the epupp GitHub repository"
   []
-  (let [base-url "https://raw.githubusercontent.com/PEZ/epupp/master/"
+  (let [api-url "https://api.github.com/repos/PEZ/epupp/contents/"
         docs-dir (str (fs/cwd) "/docs")]
     (fs/create-dirs docs-dir)
     (doseq [[src dest] docs-sync-files]
-      (let [{:keys [status body]} (http/get (str base-url src)
-                                            {:throw false})]
+      (let [{:keys [status body]} (http/get (str api-url src)
+                                            {:headers {"Accept" "application/vnd.github.raw+json"}
+                                             :throw false})]
         (if (= 200 status)
           (do (spit (str docs-dir "/" dest) (str (sync-note src) body))
               (println "  ✓" src "->" dest))
