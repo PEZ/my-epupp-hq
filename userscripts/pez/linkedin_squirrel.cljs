@@ -647,6 +647,102 @@
 
 (declare process-mutations!)
 
+;; ── Viewport Buffer (feed refresh protection) ────────────────────
+
+(def viewport-buffer-size 7)
+
+(defonce !viewport-buffer (atom {:seen [] :clones {}}))
+
+(defn buffer-viewport-post! [urn post-el]
+  (swap! !viewport-buffer
+         (fn [{:keys [seen clones]}]
+           (let [new-clone (.cloneNode post-el true)
+                 new-seen (if (some #{urn} seen)
+                            seen
+                            (let [appended (conj seen urn)]
+                              (if (> (count appended) viewport-buffer-size)
+                                (subvec appended (- (count appended) viewport-buffer-size))
+                                appended)))
+                 kept-urns (set new-seen)]
+             {:seen new-seen
+              :clones (-> (select-keys clones kept-urns)
+                          (assoc urn new-clone))}))))
+
+(defn reset-viewport-buffer! []
+  (reset! !viewport-buffer {:seen [] :clones {}}))
+
+(defn get-feed-urns []
+  (set (keep #(.getAttribute % "data-urn") (qa-doc :sel/post-container))))
+
+(defn detect-feed-refresh []
+  (let [{:keys [seen]} @!viewport-buffer]
+    (when (>= (count seen) 3)
+      (let [dom-urns (get-feed-urns)]
+        (not-any? dom-urns seen)))))
+
+(defn topmost-viewport-post-el []
+  (some (fn [post]
+          (let [rect (.getBoundingClientRect post)]
+            (when (and (>= (.-bottom rect) 0)
+                       (<= (.-top rect) (.-innerHeight js/window)))
+              post)))
+        (qa-doc :sel/post-container)))
+
+(defn inject-vanished-button! []
+  (when-not (js/document.getElementById "epupp-squirrel-vanished-btn")
+    (let [{:keys [seen clones]} @!viewport-buffer
+          n (count seen)]
+      (when (pos? n)
+        (when-let [anchor (topmost-viewport-post-el)]
+          (let [btn (js/document.createElement "div")]
+            (set! (.-id btn) "epupp-squirrel-vanished-btn")
+            (set! (.. btn -style -cssText)
+                  "padding: 12px 16px; margin: 8px 0; background: #fffde7; border: 2px solid #f59e0b; border-radius: 8px; text-align: center; cursor: pointer; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 600; color: #92400e;")
+            (set! (.-textContent btn) (str "\uD83D\uDC3F\uFE0F Show " n " vanished posts"))
+            (.addEventListener btn "click"
+              (fn [_]
+                (let [parent (.-parentElement btn)
+                      ref (.-nextSibling btn)]
+                  (doseq [urn (reverse seen)]
+                    (when-let [clone (get clones urn)]
+                      (let [wrapper (js/document.createElement "div")]
+                        (set! (.. wrapper -style -cssText)
+                              "border-left: 3px solid #f59e0b;")
+                        (.setAttribute wrapper "data-epupp-rescued" "true")
+                        (.appendChild wrapper clone)
+                        (.insertBefore parent wrapper ref))))
+                  (.removeChild parent btn)
+                  (reset-viewport-buffer!)
+                  (js/console.log "[epupp:squirrel] Restored" n "vanished posts"))))
+            (.insertBefore (.-parentElement anchor) btn anchor)
+            (js/console.log "[epupp:squirrel] Feed refresh detected, injected vanished-posts button")))))))
+
+(defn create-viewport-observer! []
+  (when-let [old (:resource/viewport-observer @!resources)]
+    (.disconnect old))
+  (let [observer (js/IntersectionObserver.
+                  (fn [entries]
+                    (doseq [entry entries]
+                      (when (.-isIntersecting entry)
+                        (let [post-el (.-target entry)
+                              urn (extract-urn-from-element post-el)]
+                          (when (activity-urn? urn)
+                            (buffer-viewport-post! urn post-el))))))
+                  #js {:threshold 0.3})]
+    (swap! !resources assoc :resource/viewport-observer observer)
+    (js/console.log "[epupp:squirrel] Viewport observer started")
+    observer))
+
+(defn observe-feed-posts! []
+  (when-let [observer (:resource/viewport-observer @!resources)]
+    (doseq [post-el (qa-doc :sel/post-container)]
+      (.observe observer post-el))))
+
+(defn disconnect-viewport-observer! []
+  (when-let [observer (:resource/viewport-observer @!resources)]
+    (.disconnect observer)
+    (swap! !resources assoc :resource/viewport-observer nil)))
+
 (defn schedule-mutation-processing! []
   (when-let [raf (:resource/mutation-raf @!resources)]
     (js/cancelAnimationFrame raf))
@@ -679,6 +775,9 @@
   (try
     (ensure-iframe-observers!)
     (scan-visible-posts!)
+    (observe-feed-posts!)
+    (when (detect-feed-refresh)
+      (inject-vanished-button!))
     (ensure-nav-button!)
     (catch :default err
       (js/console.error "[epupp:squirrel] Mutation processing error:" err))))
@@ -1055,6 +1154,7 @@
              :nav/seen-urns #{}
              :nav/last-url current
              :ui/panel-open? false)
+      (reset-viewport-buffer!)
       (poll-until-ready!)
       (js/setTimeout hoard-visited-post! 2000))))
 
@@ -1085,6 +1185,7 @@
 
 (defn teardown! []
   (disconnect-feed-observer!)
+  (disconnect-viewport-observer!)
   (detach-engagement-listener!)
   (detach-comment-input-listener!)
   (detach-iframe-engagement-listener!)
@@ -1110,6 +1211,7 @@
   (ensure-panel-container!)
   (load-state!)
   (create-feed-observer!)
+  (create-viewport-observer!)
   (attach-engagement-listener!)
   (attach-comment-input-listener!)
   (attach-escape-handler!)
