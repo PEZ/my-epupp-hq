@@ -425,6 +425,7 @@
       (swap! !resources assoc resource-key nil))))
 
 (defn save-state! []
+  (swap! !state prune-posts)
   (let [{:keys [squirrel/posts squirrel/index]} @!state
         data {:posts posts :index index}]
     (storage-set! storage-key (pr-str data))
