@@ -743,19 +743,27 @@
               post)))
         (qa-doc :sel/post-container)))
 
-(defn vanished-button-view [{:keys [n on-click]}]
+(defn vanished-button-view [{:keys [n on-click on-dismiss]}]
   [:div {:id "epupp-squirrel-vanished-btn"
          :style {:padding "12px 16px"
                  :margin "8px 0"
                  :background "#fffde7"
                  :border "2px solid #f59e0b"
                  :border-radius "8px"
-                 :cursor "pointer"
                  :display "flex"
-                 :justify-content "center"}
-         :on {:click on-click}}
-   (epupp-header :size 24 :title "Squirrel" :tagline
-                 (str "Show " n " vanished posts"))])
+                 :align-items "center"
+                 :justify-content "center"
+                 :gap "8px"}}
+   [:div {:style {:cursor "pointer" :flex 1}
+          :on {:click on-click}}
+    (epupp-header :size 24 :title "Squirrel" :tagline
+                  (str "Show " n " vanished posts"))]
+   [:button {:style {:background "none" :border "none" :cursor "pointer"
+                     :font-size "18px" :color "#92400e" :padding "4px"
+                     :line-height 1}
+             :title "Dismiss"
+             :on {:click on-dismiss}}
+    "\u00D7"]])
 
 (defn inject-vanished-button! []
   (when-not (js/document.getElementById "epupp-squirrel-vanished-btn")
@@ -781,7 +789,12 @@
                                     (.insertBefore parent wrapper ref)))
                                 (.removeChild parent mount)
                                 (reset-viewport-buffer!)
-                                (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))}))
+                                (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))
+                  :on-dismiss (fn [e]
+                                (.stopPropagation e)
+                                (.removeChild (.-parentElement mount) mount)
+                                (reset-viewport-buffer!)
+                                (js/console.log "[epupp:squirrel] Dismissed vanished-posts button"))}))
               (.insertBefore (.-parentElement anchor) mount anchor)
               (js/console.log "[epupp:squirrel] Feed refresh detected, injected vanished-posts button"))))))))
 
