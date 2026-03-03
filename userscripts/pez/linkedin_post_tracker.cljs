@@ -105,8 +105,9 @@
       (some-> (preload-iframe-doc) (q sel-key))))
 
 (defn qa-doc [sel-key]
-  (or (qa js/document sel-key)
-      (some-> (preload-iframe-doc) (qa sel-key))))
+  (let [main (qa js/document sel-key)
+        iframe (some-> (preload-iframe-doc) (qa sel-key))]
+    (seq (concat main iframe))))
 
 ;; Utility Predicates
 
