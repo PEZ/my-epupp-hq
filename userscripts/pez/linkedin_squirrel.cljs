@@ -31,6 +31,46 @@
 
 (ensure-panel-container!)
 
+(defn epupp-icon
+  [& {:keys [size] :or {size 36}}]
+  (let [accent-color "#FFDC73"]
+    [:svg {:width size
+           :height size
+           :viewBox "0 0 100 100"
+           :fill :none
+           :xmlns "http://www.w3.org/2000/svg"}
+     [:path
+      {:d
+       "M50 0.999996C77.062 0.999996 99 22.938 99 50C99 77.0619 77.062 99 50 99C22.9381 99 1 77.0619 1 50C1 22.938 22.9381 0.999996 50 0.999996Z"
+       :fill "#4A71C4"
+       :stroke accent-color
+       :stroke-width "2"}]
+     [:path
+      {:d
+       "M34.9792 36.9613L75.3818 0.999997L15.0206 37.2308L44.6048 50.8483L23.4278 84.9488L85.5 67.5L48.8818 66L55.9177 47.6053L34.9792 36.9613Z"
+       :fill accent-color}]]))
+
+(defn epupp-header [& {:keys [size title tagline]
+                       :or {size 36
+                            title "Epupp"
+                            tagline "Live Tamper your Web"}}]
+  (let [font-size (* size (/ 24 36))]
+    [:div {:style {:font-size (str font-size "px")
+                   :display "flex"
+                   :align-items "center"
+                   :gap "8px"}}
+     (epupp-icon :size size)
+     [:span {:style {:font-weight 500
+                     :display "flex"
+                     :align-items "baseline"}}
+      title
+      (when tagline
+        [:span {:style {:font-size (str (* 0.75 font-size) "px")
+                        :font-style "italic"
+                        :font-weight 400
+                        :margin-left "4px"}}
+         tagline])]]))
+
 (def selectors ; Selector Registry
   {:sel/feed-container    [".scaffold-finite-scroll__content" "main"]
    :sel/post-container    ["[data-urn]" "[data-view-name='content-search-result']" "[data-view-name='feed-full-update']"]
@@ -398,8 +438,6 @@
         (-> state
             (update :squirrel/posts #(apply dissoc % unpinned-oldest))
             (update :squirrel/index #(vec (remove remove-set %))))))))
-
-
 
 (defn make-debounced [delay-ms f]
   (let [!timeout (atom nil)]
@@ -1058,8 +1096,7 @@
      ;; Header
      [:div {:style {:padding "12px 16px" :border-bottom "1px solid #e0e0e0"
                     :display "flex" :justify-content "space-between" :align-items "center"}}
-      [:span {:style {:font-weight "700" :font-size "16px"}}
-       (str "Hoarded Posts (" post-count ")")]
+      (epupp-header :size 28 :title (str "Hoarded Posts (" post-count ")") :tagline nil)
       [:button {:style {:background "none" :border "none" :cursor "pointer"
                         :font-size "20px" :color "#666" :padding "0 4px"}
                 :on {:click (fn [_] (swap! !state assoc :ui/panel-open? false))}}
