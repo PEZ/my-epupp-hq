@@ -592,7 +592,8 @@
    {:source :text     :pattern #"(?i)repost"   :engagement :engaged/reposted}
    {:source :text     :pattern #"(?i)\bsave\b" :engagement :engaged/saved}
    {:source :text     :pattern #"(?i)more"     :engagement :engaged/expanded}
-   {:source :text     :pattern #"(?i)view larger image" :engagement :engaged/viewed}])
+   {:source :text     :pattern #"(?i)view larger image" :engagement :engaged/viewed}
+   {:source :btn-aria :pattern #"(?i)navigate to" :engagement :engaged/viewed}])
 
 (defn interpret-click [click-context]
   (some (fn [{:keys [source pattern engagement]}]
