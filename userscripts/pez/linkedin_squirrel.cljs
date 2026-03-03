@@ -180,13 +180,27 @@
 ;; Scraping Boundary (impure — only place touching DOM for post data)
 
 (defn scrape-post-element [post-el]
+  (let [showcase (.querySelector post-el ".update-components-showcase")]
   {:raw/urn (extract-urn-from-element post-el)
    :raw/author-name (or (some-> (q post-el :sel/author-name) .-textContent string/trim)
-                        (extract-author-from-control-menu post-el))
-   :raw/author-headline (some-> (q post-el :sel/author-headline) .-textContent string/trim)
-   :raw/author-avatar-url (some-> (q post-el :sel/author-avatar) (.getAttribute "src"))
-   :raw/author-profile-url (some-> (q post-el :sel/author-link) (.getAttribute "href"))
-   :raw/text (some-> (q post-el :sel/post-text) .-textContent)
+                        (extract-author-from-control-menu post-el)
+                        (some-> (.querySelector post-el ".update-components-header a") .-textContent string/trim
+                                (string/replace #"\u2019s$|'s$" "")))
+   :raw/author-headline (or (some-> (q post-el :sel/author-headline) .-textContent string/trim)
+                            (some-> showcase
+                                    (.querySelector ".update-components-showcase__subtitle")
+                                    .-textContent string/trim))
+   :raw/author-avatar-url (or (some-> (q post-el :sel/author-avatar) (.getAttribute "src"))
+                              (some-> showcase
+                                      (.querySelector ".update-components-showcase__icon img")
+                                      (.getAttribute "src")))
+   :raw/author-profile-url (or (some-> (q post-el :sel/author-link) (.getAttribute "href"))
+                               (some-> (.querySelector post-el ".update-components-header a[href*='/in/']")
+                                       (.getAttribute "href")))
+   :raw/text (or (some-> (q post-el :sel/post-text) .-textContent)
+                 (some-> showcase
+                         (.querySelector ".update-components-showcase__title")
+                         .-textContent string/trim))
    :raw/timestamp-text (some-> (q post-el :sel/timestamp) .-textContent)
    :raw/has-article? (or (some? (q post-el :sel/article-card))
                          (some? (q post-el :sel/article-desc-link)))
@@ -220,7 +234,7 @@
    :raw/image-url (some-> (q post-el :sel/image-container) (.querySelector "img") (.getAttribute "src"))
    :raw/article-image-url (or (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
                               (some-> (q post-el :sel/article-image-link) (.querySelector "img") (.getAttribute "src")))
-   :raw/has-reshare? (some? (.querySelector post-el ".update-components-mini-update-v2"))})
+   :raw/has-reshare? (some? (.querySelector post-el ".update-components-mini-update-v2"))}))
 
 ;; Pure Transforms (testable without DOM)
 
