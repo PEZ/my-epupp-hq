@@ -866,56 +866,65 @@
               post)))
         (qa-doc :sel/post-container)))
 
-(defn vanished-post-card [{:post/keys [urn author-name author-avatar-url
-                                       author-headline text-preview media-type] :as post}
+(defn post-card-body
+  "Shared hiccup for post cards. Returns a list (Replicant fragment).
+   `actions` is hiccup for the top-right area of the author row."
+  [{:post/keys [author-name author-avatar-url author-headline
+                text-preview media-type] :as post}
+   actions]
+  (list
+   [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
+    (if author-avatar-url
+      [:img {:src author-avatar-url
+             :style {:width "32px" :height "32px" :border-radius "50%"}}]
+      [:div {:style {:width "32px" :height "32px" :border-radius "50%"
+                     :background "#0a66c2" :color "white" :display "flex"
+                     :align-items "center" :justify-content "center"
+                     :font-size "12px" :font-weight "bold"}}
+       (initials author-name)])
+    [:div {:style {:flex "1" :min-width "0"}}
+     [:div {:style {:font-weight "600" :font-size "13px" :white-space "nowrap"
+                    :overflow "hidden" :text-overflow "ellipsis"}}
+      (or author-name "Unknown")]
+     [:div {:style {:font-size "11px" :color "#666" :white-space "nowrap"
+                    :overflow "hidden" :text-overflow "ellipsis"}}
+      (or author-headline "")]]
+    actions]
+   (when text-preview
+     [:div {:style {:font-size "12px" :color "#333" :margin-bottom "6px"
+                    :display "-webkit-box" :-webkit-line-clamp "2"
+                    :-webkit-box-orient "vertical" :overflow "hidden"}}
+      text-preview])
+   (media-thumbnail post)
+   (when (= media-type :media/article)
+     (article-mini-card post))))
+
+(defn vanished-post-card [{:post/keys [urn media-type] :as post}
                           {:keys [on-pin]}]
   (let [pinned? (get-in @!state [:squirrel/posts urn :post/pinned?])]
     [:div {:replicant/key urn
            :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
                    :border-left "3px solid #f59e0b"
                    :background (if pinned? "#fffde7" "white")}}
-     [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
-      (if author-avatar-url
-        [:img {:src author-avatar-url
-               :style {:width "32px" :height "32px" :border-radius "50%"}}]
-        [:div {:style {:width "32px" :height "32px" :border-radius "50%"
-                       :background "#0a66c2" :color "white" :display "flex"
-                       :align-items "center" :justify-content "center"
-                       :font-size "12px" :font-weight "bold"}}
-         (initials author-name)])
-      [:div {:style {:flex "1" :min-width "0"}}
-       [:div {:style {:font-weight "600" :font-size "13px" :white-space "nowrap"
-                      :overflow "hidden" :text-overflow "ellipsis"}}
-        (or author-name "Unknown")]
-       [:div {:style {:font-size "11px" :color "#666" :white-space "nowrap"
-                      :overflow "hidden" :text-overflow "ellipsis"}}
-        (or author-headline "")]]
-      [:div {:style {:display "flex" :align-items "center" :gap "4px"
-                     :flex-shrink "0" :margin-top "2px"}}
-       [:button {:style {:background "none" :border "none" :cursor "pointer"
-                         :font-size "16px" :padding "4px" :line-height "1"
-                         :color (if pinned? "#f59e0b" "#666")}
-                 :title (if pinned? "Unpin" "Pin to hoard")
-                 :on {:click (fn [e]
-                               (.stopPropagation e)
-                               (on-pin urn post))}}
-        (if pinned? "\u2605" "\u2606")]
-       [:button {:style {:background "none" :border "none" :cursor "pointer"
-                         :font-size "13px" :padding "4px" :line-height "1"
-                         :color "#0a66c2"}
-                 :title "Open post"
-                 :on {:click (fn [e]
-                               (.stopPropagation e)
-                               (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank"))}}
-        "\u2197"]]]
-     (when text-preview
-       [:div {:style {:font-size "12px" :color "#333" :margin-bottom "6px"
-                      :display "-webkit-box" :-webkit-line-clamp "2"
-                      :-webkit-box-orient "vertical" :overflow "hidden"}}
-        text-preview])
-     (media-thumbnail post)
-     (when (= media-type :media/article)
-       (article-mini-card post))
+     (post-card-body post
+       [:div {:style {:display "flex" :align-items "center" :gap "4px"
+                      :flex-shrink "0" :margin-top "2px"}}
+        [:button {:style {:background "none" :border "none" :cursor "pointer"
+                          :font-size "16px" :padding "4px" :line-height "1"
+                          :color (if pinned? "#f59e0b" "#666")}
+                  :title (if pinned? "Unpin" "Pin to hoard")
+                  :on {:click (fn [e]
+                                (.stopPropagation e)
+                                (on-pin urn post))}}
+         (if pinned? "\u2605" "\u2606")]
+        [:button {:style {:background "none" :border "none" :cursor "pointer"
+                          :font-size "13px" :padding "4px" :line-height "1"
+                          :color "#0a66c2"}
+                  :title "Open post"
+                  :on {:click (fn [e]
+                                (.stopPropagation e)
+                                (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank"))}}
+         "\u2197"]])
      [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
       (when media-type
         [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
@@ -1123,9 +1132,7 @@
 (defn sort-posts [posts]
   (reverse (sort-by :post/last-engaged posts)))
 
-(defn post-card [{:post/keys [urn author-name author-avatar-url
-                              author-headline text-preview media-type
-                              engagements pinned? last-engaged]
+(defn post-card [{:post/keys [urn media-type engagements pinned? last-engaged]
                   :as post}]
   [:div {:replicant/key urn
          :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
@@ -1134,50 +1141,22 @@
          :on {:click (fn [_e]
                        (when-not (string/starts-with? urn "urn:li:synthetic:")
                          (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank")))}}
-   ;; Author row
-   [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
-    (if author-avatar-url
-      [:img {:src author-avatar-url
-             :style {:width "32px" :height "32px" :border-radius "50%"}}]
-      [:div {:style {:width "32px" :height "32px" :border-radius "50%"
-                     :background "#0a66c2" :color "white" :display "flex"
-                     :align-items "center" :justify-content "center"
-                     :font-size "12px" :font-weight "bold"}}
-       (initials author-name)])
-    [:div {:style {:flex "1" :min-width "0"}}
-     [:div {:style {:font-weight "600" :font-size "13px" :white-space "nowrap"
-                    :overflow "hidden" :text-overflow "ellipsis"}}
-      (or author-name "Unknown")]
-     [:div {:style {:font-size "11px" :color "#666" :white-space "nowrap"
-                    :overflow "hidden" :text-overflow "ellipsis"}}
-      (or author-headline "")]]
-    [:div {:style {:display "flex" :align-items "center" :gap "4px"
-                   :white-space "nowrap" :flex-shrink "0" :margin-top "2px"}}
-     (when pinned?
-       [:span {:style {:color "#f59e0b" :font-size "14px" :line-height "1"}} "\u2605"])
-     [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
-      (format-relative-time last-engaged (js/Date.now))]
-     [:button {:style {:background "none" :border "none" :cursor "pointer"
-                       :color "#ccc" :font-size "14px" :padding "0"
-                       :line-height "1" :margin-left "2px"}
-               :title "Remove from hoard"
-               :on {:click (fn [e]
-                             (.stopPropagation e)
-                             (swap! !state remove-post urn)
-                             (schedule-save!))}}
-      "\u00D7"]]]
-   ;; Text preview
-   (when text-preview
-     [:div {:style {:font-size "12px" :color "#333" :margin-bottom "6px"
-                    :display "-webkit-box" :-webkit-line-clamp "2"
-                    :-webkit-box-orient "vertical" :overflow "hidden"}}
-      text-preview])
-   ;; Media display (feed-like)
-   (media-thumbnail post)
-   ;; Article mini-card
-   (when (= media-type :media/article)
-     (article-mini-card post))
-   ;; Badges
+   (post-card-body post
+     [:div {:style {:display "flex" :align-items "center" :gap "4px"
+                    :white-space "nowrap" :flex-shrink "0" :margin-top "2px"}}
+      (when pinned?
+        [:span {:style {:color "#f59e0b" :font-size "14px" :line-height "1"}} "\u2605"])
+      [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
+       (format-relative-time last-engaged (js/Date.now))]
+      [:button {:style {:background "none" :border "none" :cursor "pointer"
+                        :color "#ccc" :font-size "14px" :padding "0"
+                        :line-height "1" :margin-left "2px"}
+                :title "Remove from hoard"
+                :on {:click (fn [e]
+                              (.stopPropagation e)
+                              (swap! !state remove-post urn)
+                              (schedule-save!))}}
+       "\u00D7"]])
    [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
     (when media-type
       [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
