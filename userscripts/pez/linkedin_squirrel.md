@@ -14,6 +14,7 @@ The squirrel silently observes your LinkedIn feed and records posts you interact
 - **Search** — Case-insensitive substring match across author name, headline, and post text
 - **Filter** — Toggle by engagement type
 - **Navigate** — Click any hoarded post to open it on LinkedIn in a new tab
+- **Feed refresh protection** — Continuously buffers the last 7 posts visible in the viewport. When LinkedIn replaces the feed (auto-refresh or "load new posts" button), a rescue button appears offering to restore the vanished posts inline with a gold left border
 - **Panel controls** — Toggle via nav button, close with Escape or click-outside
 
 ## Architecture
@@ -72,6 +73,27 @@ The script addresses this through several mechanisms:
 
 This architecture is only triggered by the search-to-feed navigation path. Other LinkedIn views (messaging, notifications, profile) use stable SPA re-renders within the main document.
 
+### Why Showcase Post Fallback Scraping
+
+LinkedIn renders certain post types — job anniversaries, work updates — as "showcase" posts using `update-components-header` + `update-components-showcase` instead of the standard `update-components-actor` layout. These posts have no actor element, no control menu, and no timestamp element. The scraper falls back to extracting author name from the header link (stripping the possessive `'s`/`\u2019s`), headline from the showcase subtitle, avatar from the showcase icon image, profile URL from the header link, and text from the showcase title. The fallback chain in `scrape-post-element` is ordered: standard selectors → control menu → showcase header, so normal posts are unaffected.
+
+### Why a Viewport Buffer for Feed Refresh Protection
+
+LinkedIn periodically replaces the entire feed content — either automatically or when the user clicks "load new posts". Any post you were reading vanishes with no way to find it again. The viewport buffer addresses this by maintaining a sliding window of the last 7 posts that entered the viewport.
+
+**Mechanism:**
+- An `IntersectionObserver` (30% threshold) watches all `[data-urn]` post elements
+- When a post enters the viewport, it's deep-cloned via `.cloneNode(true)` and stored in `!viewport-buffer` alongside its URN
+- The buffer is a separate `defonce` atom (not in `!state`) because cloned DOM nodes aren't serializable
+- On each mutation processing cycle, `detect-feed-refresh` checks whether any of the buffered URNs still exist in the DOM — if at least 3 were buffered and none remain, that's a feed refresh
+- A styled button is injected above the topmost visible post; clicking it inserts the cloned posts (wrapped with a gold left border and `data-epupp-rescued` attribute) and resets the buffer
+
+**Why `!viewport-buffer` is separate from `!state`:** DOM node clones can't be serialized to EDN/localStorage. This follows the same pattern as `!resources` — live JS objects stay out of the persistence layer.
+
+**Why deep clone:** `.cloneNode(true)` captures the exact visual state including loaded images, expanded text, and rendered styles. This gives perfect visual fidelity when restoring vanished posts without needing to re-scrape or reconstruct anything.
+
+**Why threshold of 3:** Requiring at least 3 buffered URNs before triggering refresh detection prevents false positives during initial page load or navigation when the buffer is still filling up.
+
 ### Why MutationObserver → RAF → setTimeout
 
 `MutationObserver` fires for every DOM node added — LinkedIn renders 20+ nodes per post. If we scanned on every callback, we'd process the feed 100+ times per second during scrolling. The pipeline collapses this: RAF batches callbacks to the next paint frame, then a 150ms timeout lets LinkedIn's lazy-load logic finish. Result: ~2 scans per feed refresh instead of hundreds.
@@ -87,6 +109,8 @@ The storage key evolved from `"epupp:linkedin-squirrel"` to the namespaced `"epu
 - **Timing assumptions** — The nav bar might not exist at `document-idle` on slow connections. The 1.5s delay after navigation and 150ms mutation debounce are tuned for typical LinkedIn rendering speed. If LinkedIn's rendering pipeline changes significantly, these may need adjustment.
 - **Promoted post detection** — Relies on URN format (`urn:li:activity:*`) and "promot" keyword in timestamp text. If LinkedIn changes how it labels promoted content, sponsored posts could leak into the squirrel.
 - **Current-user detection** — Depends on the sidebar profile link (`:sel/me-profile-link`). The sidebar may not render on all page types (messaging, settings). Detection is retried on navigation, but own posts seen before detection succeeds won't be tagged until the next page visit.
+- **Viewport buffer DOM clones** — Cloned nodes are static snapshots. If the original post had lazy-loaded content that hadn't rendered yet, the clone won't have it either. Interactive elements in restored posts (like/comment buttons) may not function since they're disconnected from LinkedIn's event system.
+- **Showcase post structure** — The `update-components-showcase` layout is used for job anniversaries and similar LinkedIn-generated posts. If LinkedIn changes this layout or introduces new non-actor post types, the fallback scraping chain in `scrape-post-element` may need extending.
 
 ## Maintenance Recipes
 
@@ -130,10 +154,18 @@ Verify the atom watch is firing — `(teardown!)` then `(init!)` to re-attach. C
 **Own posts not being detected?**
 Check `(:nav/current-user-slug @!state)` — if `nil`, the sidebar profile link wasn't found. Navigate to the feed and check `(q-doc :sel/me-profile-link)`. If the selector is stale, update it in the `selectors` map. Once the slug is detected, posts will be tagged on subsequent scans.
 
+**Viewport buffer not detecting feed refresh?**
+Check `@!viewport-buffer` — `:seen` should contain URNs of recently viewed posts. If empty, the `IntersectionObserver` may not be running — check `(:resource/viewport-observer @!resources)`. Verify with `(detect-feed-refresh)` — returns truthy only when ≥3 buffered URNs and none found in current DOM. The buffer resets on navigation, so it only protects within a single page view.
+
+**Post showing as "Unknown" in the panel?**
+Likely a non-standard post type (showcase/job update) that the scraper didn't recognize. Check the post's DOM: if it has `update-components-showcase` instead of `update-components-actor`, the showcase fallback should handle it. If a new layout type appears, extend the fallback chain in `scrape-post-element`.
+
 **General diagnostics:**
 - `@!state` — full state snapshot
 - `@!resources` — which listeners/observers are attached
+- `@!viewport-buffer` — current viewport buffer state (`:seen` URNs and `:clones`)
 - `(:nav/current-user-slug @!state)` — detected current user
+- `(:resource/viewport-observer @!resources)` — whether the viewport observer is active
 - `(:resource/iframe-observed-body @!resources)` — whether the preload iframe is being observed
 - `(teardown!)` then `(init!)` — full restart without page reload
 - Console logs are prefixed with `[epupp:squirrel]`
