@@ -19,12 +19,16 @@
 
 (defonce !resources (atom {}))
 
-;; Panel container must be created once and kept as a DOM reference
-(when-not (:resource/panel-container @!resources)
-  (let [container (doto (js/document.createElement "div")
-                    (set! -id "epupp-tracker-panel-root")
-                    (->> (.appendChild js/document.body)))]
-    (swap! !resources assoc :resource/panel-container container)))
+(defn ensure-panel-container! []
+  (let [existing (:resource/panel-container @!resources)]
+    (when (or (nil? existing)
+              (not (.contains js/document.body existing)))
+      (let [container (doto (js/document.createElement "div")
+                        (set! -id "epupp-tracker-panel-root")
+                        (->> (.appendChild js/document.body)))]
+        (swap! !resources assoc :resource/panel-container container)))))
+
+(ensure-panel-container!)
 
 (def selectors ; Selector Registry
   {:sel/feed-container    [".scaffold-finite-scroll__content" "main"]
@@ -69,10 +73,7 @@
           (let [result (try (.querySelector context sel)
                             (catch :default _e nil))]
             (if result
-              (do
-                (when (pos? idx)
-                  (js/console.warn "[epupp:tracker] Fell to secondary selector for" (name sel-key) ":" sel))
-                result)
+              result
               (recur more (inc idx)))))))))
 
 (defn qa
@@ -93,8 +94,19 @@
                 result)
               (recur more (inc idx)))))))))
 
-(defn q-doc [sel-key] (q js/document sel-key))
-(defn qa-doc [sel-key] (qa js/document sel-key))
+(defn- preload-iframe-doc []
+  (try
+    (some-> (js/document.querySelector "iframe[src='/preload/']")
+            .-contentDocument)
+    (catch :default _ nil)))
+
+(defn q-doc [sel-key]
+  (or (q js/document sel-key)
+      (some-> (preload-iframe-doc) (q sel-key))))
+
+(defn qa-doc [sel-key]
+  (or (qa js/document sel-key)
+      (some-> (preload-iframe-doc) (qa sel-key))))
 
 ;; Utility Predicates
 
@@ -479,8 +491,9 @@
 
 (defn ensure-nav-button! []
   (when-let [nav-list (q-doc :sel/nav-items-list)]
-    (let [mount-el (or (js/document.getElementById "epupp-tracker-nav-mount")
-                       (let [el (js/document.createElement "div")
+    (let [owner-doc (.-ownerDocument nav-list)
+          mount-el (or (.getElementById owner-doc "epupp-tracker-nav-mount")
+                       (let [el (.createElement owner-doc "div")
                              me-item (find-me-nav-item nav-list)]
                          (set! (.-id el) "epupp-tracker-nav-mount")
                          (set! (.. el -style -display) "contents")
@@ -862,6 +875,21 @@
 (defn detach-beforeunload-handler! []
   (detach-listener! js/window "beforeunload" :resource/beforeunload-handler {}))
 
+(defn poll-until-ready! []
+  (let [attempts (atom 0)
+        max-attempts 30
+        interval-ms 200]
+    (letfn [(tick []
+              (swap! attempts inc)
+              (ensure-panel-container!)
+              (detect-current-user-slug!)
+              (scan-visible-posts!)
+              (let [nav-done? (ensure-nav-button!)]
+                (when (and (not nav-done?)
+                           (< @attempts max-attempts))
+                  (js/setTimeout tick interval-ms))))]
+      (js/setTimeout tick interval-ms))))
+
 (defn on-navigation! []
   (let [current (.-href js/window.location)]
     (when (not= current (:nav/last-url @!state))
@@ -869,12 +897,7 @@
              :nav/seen-urns #{}
              :nav/last-url current
              :ui/panel-open? false)
-      (js/setTimeout
-       (fn []
-         (detect-current-user-slug!)
-         (scan-visible-posts!)
-         (ensure-nav-button!))
-       1500))))
+      (poll-until-ready!))))
 
 (defn start-url-polling! []
   (when-let [old (:resource/url-poll-interval @!resources)]
@@ -923,6 +946,7 @@
                (when (not= o n)
                  (render-panel!)
                  (ensure-nav-button!))))
+  (ensure-panel-container!)
   (load-state!)
   (create-feed-observer!)
   (attach-engagement-listener!)
