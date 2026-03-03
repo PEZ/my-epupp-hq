@@ -423,14 +423,16 @@
 
 (defn extract-click-context [target]
   (let [closest-btn (when (not= (.. target -tagName toLowerCase) "button")
-                      (.closest target "button"))]
-    {:btn-aria (or (some-> (or closest-btn target) (.getAttribute "aria-label")) "")
-     :text (or (.-textContent target) "")}))
+                      (.closest target "button"))
+        resolved (or closest-btn target)]
+    {:btn-aria (or (some-> resolved (.getAttribute "aria-label")) "")
+     :text (string/trim (or (.-textContent resolved) ""))}))
 
 (def click-patterns
   [{:source :btn-aria :pattern #"(?i)react"    :engagement :engaged/liked}
    {:source :btn-aria :pattern #"(?i)comment"  :engagement :engaged/commented}
-   {:source :btn-aria :pattern #"(?i)repost"   :engagement :engaged/reposted}
+   {:source :text     :pattern #"(?i)repost"   :engagement :engaged/reposted}
+   {:source :text     :pattern #"(?i)^save$"   :engagement :engaged/saved}
    {:source :text     :pattern #"(?i)more"     :engagement :engaged/expanded}])
 
 (defn interpret-click [click-context]
@@ -651,6 +653,7 @@
   {:engaged/liked "Liked"
    :engaged/commented "Commented"
    :engaged/reposted "Reposted"
+   :engaged/saved "Saved"
    :engaged/expanded "Expanded"
    :engaged/pinned "Pinned"
    :engaged/posted "Posted"})
