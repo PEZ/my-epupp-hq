@@ -459,6 +459,19 @@
 (defn detach-engagement-listener! []
   (detach-listener! js/document.body "click" :resource/engagement-handler {:capture? true}))
 
+(defn- attach-iframe-engagement-listener! [iframe-body]
+  (when-let [old (:resource/iframe-engagement-handler @!resources)]
+    (.removeEventListener (.-target old) "click" (.-handler old) true))
+  (let [handler handle-engagement!]
+    (.addEventListener iframe-body "click" handler true)
+    (swap! !resources assoc :resource/iframe-engagement-handler
+           #js {:target iframe-body :handler handler})))
+
+(defn- detach-iframe-engagement-listener! []
+  (when-let [old (:resource/iframe-engagement-handler @!resources)]
+    (.removeEventListener (.-target old) "click" (.-handler old) true)
+    (swap! !resources assoc :resource/iframe-engagement-handler nil)))
+
 (defn nav-button-view [{:keys [post-count open?]}]
   [:li.global-nav__primary-item {:id "epupp-tracker-nav-btn"
                                  :style {:margin-left "1rem"}}
@@ -510,7 +523,8 @@
   (when-not (.querySelector post-el "[data-epupp-pin]")
     (let [overflow-btn (q post-el :sel/overflow-menu)
           target-container (when overflow-btn (.-parentElement overflow-btn))
-          btn (js/document.createElement "button")
+          owner-doc (.-ownerDocument post-el)
+          btn (.createElement owner-doc "button")
           pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
       (when target-container
         (.setAttribute btn "data-epupp-pin" urn)
@@ -568,12 +582,7 @@
   (doseq [post-el (qa-doc :sel/post-container)]
     (scan-post! post-el)))
 
-(defn process-mutations! []
-  (try
-    (scan-visible-posts!)
-    (ensure-nav-button!)
-    (catch :default err
-      (js/console.error "[epupp:tracker] Mutation processing error:" err))))
+(declare process-mutations!)
 
 (defn schedule-mutation-processing! []
   (when-let [raf (:resource/mutation-raf @!resources)]
@@ -586,8 +595,35 @@
             (swap! !resources assoc :resource/mutation-timeout
                    (js/setTimeout process-mutations! 150))))))
 
+(defn- ensure-iframe-observers! []
+  (when-let [iframe-body (some-> (preload-iframe-doc) .-body)]
+    (let [current-body (:resource/iframe-observed-body @!resources)]
+      (when (not= current-body iframe-body)
+        (when-let [old-observer (:resource/iframe-feed-observer @!resources)]
+          (.disconnect old-observer))
+        (let [observer (js/MutationObserver.
+                        (fn [_mutations _observer]
+                          (schedule-mutation-processing!)))]
+          (.observe observer iframe-body
+                    #js {:childList true :subtree true})
+          (swap! !resources assoc
+                 :resource/iframe-feed-observer observer
+                 :resource/iframe-observed-body iframe-body))
+        (attach-iframe-engagement-listener! iframe-body)
+        (js/console.log "[epupp:tracker] Attached to preload iframe")))))
+
+(defn process-mutations! []
+  (try
+    (ensure-iframe-observers!)
+    (scan-visible-posts!)
+    (ensure-nav-button!)
+    (catch :default err
+      (js/console.error "[epupp:tracker] Mutation processing error:" err))))
+
 (defn disconnect-feed-observer! []
   (when-let [observer (:resource/feed-observer @!resources)]
+    (.disconnect observer))
+  (when-let [observer (:resource/iframe-feed-observer @!resources)]
     (.disconnect observer))
   (when-let [raf (:resource/mutation-raf @!resources)]
     (js/cancelAnimationFrame raf))
@@ -595,6 +631,8 @@
     (js/clearTimeout timeout))
   (swap! !resources assoc
          :resource/feed-observer nil
+         :resource/iframe-feed-observer nil
+         :resource/iframe-observed-body nil
          :resource/mutation-raf nil
          :resource/mutation-timeout nil))
 
@@ -927,6 +965,7 @@
 (defn teardown! []
   (disconnect-feed-observer!)
   (detach-engagement-listener!)
+  (detach-iframe-engagement-listener!)
   (detach-escape-handler!)
   (detach-click-outside-handler!)
   (detach-beforeunload-handler!)
