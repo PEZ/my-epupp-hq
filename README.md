@@ -85,10 +85,30 @@ bb tasks
 
 See the [userscripts README](userscripts/README.md) for the full sync workflow.
 
-## Install a useful Epupp Userscript
+## Epupp Userscript Gallery
+
+There is no Epupp Userscript Gallery yet. Epupp is brand new! But I have made two quite useful scripts that you can test and explore.
+
+### Element Printing
 
 Isolate elements on crowded web pages for printing. (It's the script created in the demo video.)
-* `pez/element_printing.cljs`: https://gist.github.com/PEZ/3b0fdc406e7593eaaef609b6fb4a687d
+
+Install `pez/element_printing.cljs` from this gist: https://gist.github.com/PEZ/3b0fdc406e7593eaaef609b6fb4a687d
+
+(This is the use case I created Epupp to solve, to begin with.)
+
+### LinkedIn Squirrel
+
+Ever been reading a post on LinkedIn, only for the feed to be refreshed and the post gone forever? Ever recalled that post you read earlier today, or yesterday, but can't find it when you want to show it to your friend? **LinkedIn Squirrel**, en Epupp userscript, to the rescue!
+
+Install `pez/linkedin_squirrel.cljs` from this gist: https://gist.github.com/PEZ/d466a85f98ec3f5f2e9aea7a13b89007
+
+LinkedIn Squirrel has two main features:
+
+1. Lets you reinsert the posts you were seeing when the feed got refreshed
+2. Hoards posts you engage with. Let's you access them from an always available list, which has filtering and instant search. _Engagement_ is that you post something, like, expand read “More...”, repost, and so on. You can also explicitly pin a post to hoard it.
+
+<img width="1393" height="1010" alt="image" src="https://gist.github.com/user-attachments/assets/e8c73981-2f65-403b-bdd6-ae46af810d85" />
 
 ## Enjoy! ♥️
 
