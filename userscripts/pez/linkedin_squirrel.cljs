@@ -1,17 +1,17 @@
-{:epupp/script-name "pez/linkedin_post_tracker.cljs"
+{:epupp/script-name "pez/linkedin_squirrel.cljs"
  :epupp/auto-run-match "https://www.linkedin.com/*"
- :epupp/description "Tracks posts you engage with on LinkedIn so that you can easily find them later"
+ :epupp/description "LinkedIn Squirrel. Hoards posts you engage with on LinkedIn so that you can easily find them later"
  :epupp/run-at "document-idle"
  :epupp/inject ["scittle://replicant.js"]}
 
-(ns pez.linkedin-post-tracker
+(ns pez.linkedin-squirrel
   (:require [clojure.edn]
             [clojure.string :as string]
             [replicant.dom :as r]))
 
 (defonce !state
-  (atom {:tracker/posts   {}
-         :tracker/index   []
+  (atom {:squirrel/posts   {}
+         :squirrel/index   []
          :ui/panel-open?  false
          :ui/search-text  ""
          :ui/filter-engagement nil
@@ -24,7 +24,7 @@
     (when (or (nil? existing)
               (not (.contains js/document.body existing)))
       (let [container (doto (js/document.createElement "div")
-                        (set! -id "epupp-tracker-panel-root")
+                        (set! -id "epupp-squirrel-panel-root")
                         (->> (.appendChild js/document.body)))]
         (swap! !resources assoc :resource/panel-container container)))))
 
@@ -90,7 +90,7 @@
             (if (seq result)
               (do
                 (when (pos? idx)
-                  (js/console.warn "[epupp:tracker] Fell to secondary selector for" (name sel-key) ":" sel))
+                  (js/console.warn "[epupp:squirrel] Fell to secondary selector for" (name sel-key) ":" sel))
                 result)
               (recur more (inc idx)))))))))
 
@@ -169,7 +169,7 @@
                       (map (fn [[k _]] [k (some? (q-doc k))]))
                       selectors)
         {found true missing false} (group-by val results)]
-    (js/console.log "[epupp:tracker] Selector health check:")
+    (js/console.log "[epupp:squirrel] Selector health check:")
     (js/console.log "  Found:" (count found) (pr-str (mapv key found)))
     (when (seq missing)
       (js/console.warn "  Missing:" (count missing) (pr-str (mapv key missing))))
@@ -187,7 +187,7 @@
    :raw/text (some-> (q post-el :sel/post-text) .-textContent)
    :raw/timestamp-text (some-> (q post-el :sel/timestamp) .-textContent)
    :raw/has-article? (or (some? (q post-el :sel/article-card))
-                        (some? (q post-el :sel/article-desc-link)))
+                         (some? (q post-el :sel/article-desc-link)))
    :raw/article-title (let [card (q post-el :sel/article-card)]
                         (or (some-> card (q :sel/article-title) .-textContent string/trim)
                             (some-> card (.querySelector "span") .-textContent string/trim)
@@ -223,7 +223,7 @@
         trimmed))))
 
 (defn detect-media-type [{:keys [raw/has-article? raw/has-video? raw/has-document?
-                                  raw/has-carousel? raw/has-poll? raw/has-image?]}]
+                                 raw/has-carousel? raw/has-poll? raw/has-image?]}]
   (cond
     has-article?  :media/article
     has-video?    :media/video
@@ -290,7 +290,7 @@
      :get-item get-item
      :remove-item remove-item}))
 
-(def storage-key "epupp:linkedin-tracker/posts")
+(def storage-key "epupp:linkedin-squirrel/posts")
 (def post-cap 500)
 (def prune-batch 50)
 
@@ -303,10 +303,10 @@
 (defn storage-remove! [k]
   (.call (:remove-item native-storage-fns) js/localStorage k))
 
-(defn track-post
+(defn hoard-post
   "Add or update a post in state. Merges engagement and preserves pin."
   [state urn snapshot engagement-type now]
-  (let [existing (get-in state [:tracker/posts urn])
+  (let [existing (get-in state [:squirrel/posts urn])
         merged (if existing
                  (-> existing
                      (update :post/engagements (fnil conj #{}) engagement-type)
@@ -315,50 +315,50 @@
                      (assoc :post/engagements #{engagement-type})
                      (assoc :post/last-engaged now)))]
     (-> state
-        (assoc-in [:tracker/posts urn] merged)
-        (update :tracker/index
+        (assoc-in [:squirrel/posts urn] merged)
+        (update :squirrel/index
                 (fn [idx]
                   (if (some #{urn} idx)
                     idx
                     (conj (or idx []) urn)))))))
 
 (defn toggle-pin [state urn]
-  (update-in state [:tracker/posts urn :post/pinned?] not))
+  (update-in state [:squirrel/posts urn :post/pinned?] not))
 
 (defn remove-post [state urn]
   (-> state
-      (update :tracker/posts dissoc urn)
-      (update :tracker/index #(vec (remove #{urn} %)))))
+      (update :squirrel/posts dissoc urn)
+      (update :squirrel/index #(vec (remove #{urn} %)))))
 
-(defn track-own-post
-  "Track a post authored by the current user.
-   New post: tracked with :engaged/posted, timestamps set to now.
-   Already tracked without :engaged/posted: adds engagement, doesn't update last-engaged.
+(defn hoard-own-post
+  "Hoard a post authored by the current user.
+   New post: hoarded with :engaged/posted, timestamps set to now.
+   Already hoarded without :engaged/posted: adds engagement, doesn't update last-engaged.
    Already has :engaged/posted: no-op."
   [state urn snapshot]
-  (let [existing (get-in state [:tracker/posts urn])]
+  (let [existing (get-in state [:squirrel/posts urn])]
     (cond
       ;; Already has :engaged/posted - no-op
       (contains? (:post/engagements existing) :engaged/posted)
       state
 
-      ;; Tracked but missing :engaged/posted - add engagement only
+      ;; Hoarded but missing :engaged/posted - add engagement only
       existing
-      (update-in state [:tracker/posts urn :post/engagements] conj :engaged/posted)
+      (update-in state [:squirrel/posts urn :post/engagements] conj :engaged/posted)
 
-      ;; Not tracked - create new entry
+      ;; Not hoarded - create new entry
       :else
       (-> state
-          (assoc-in [:tracker/posts urn]
+          (assoc-in [:squirrel/posts urn]
                     (-> snapshot
                         (assoc :post/engagements #{:engaged/posted})))
-          (update :tracker/index conj urn)))))
+          (update :squirrel/index conj urn)))))
 
 (defn prune-posts
   "Remove oldest unpinned posts when over capacity."
   [state]
-  (let [posts (:tracker/posts state)
-        index (:tracker/index state)]
+  (let [posts (:squirrel/posts state)
+        index (:squirrel/index state)]
     (if (<= (count posts) post-cap)
       state
       (let [unpinned-oldest (->> index
@@ -367,8 +367,8 @@
                                  (take prune-batch))
             remove-set (set unpinned-oldest)]
         (-> state
-            (update :tracker/posts #(apply dissoc % unpinned-oldest))
-            (update :tracker/index #(vec (remove remove-set %))))))))
+            (update :squirrel/posts #(apply dissoc % unpinned-oldest))
+            (update :squirrel/index #(vec (remove remove-set %))))))))
 
 
 
@@ -396,28 +396,28 @@
       (swap! !resources assoc resource-key nil))))
 
 (defn save-state! []
-  (let [{:keys [tracker/posts tracker/index]} @!state
+  (let [{:keys [squirrel/posts squirrel/index]} @!state
         data {:posts posts :index index}]
     (storage-set! storage-key (pr-str data))
-    (js/console.log "[epupp:tracker] Saved" (count posts) "posts")))
+    (js/console.log "[epupp:squirrel] Saved" (count posts) "posts")))
 
 (defn load-state! []
   (let [from-new (storage-get storage-key)
-        from-old (when-not from-new (storage-get "epupp:linkedin-tracker"))
+        from-old (when-not from-new (storage-get "epupp:linkedin-squirrel"))
         raw (or from-new from-old)]
     (when raw
       (try
         (let [{:keys [posts index]} (clojure.edn/read-string raw)]
           (swap! !state merge
-                 {:tracker/posts (or posts {})
-                  :tracker/index (or index [])})
+                 {:squirrel/posts (or posts {})
+                  :squirrel/index (or index [])})
           (when from-old
             (save-state!)
-            (storage-remove! "epupp:linkedin-tracker")
-            (js/console.log "[epupp:tracker] Migrated from old storage key"))
-          (js/console.log "[epupp:tracker] Loaded" (count posts) "posts"))
+            (storage-remove! "epupp:linkedin-squirrel")
+            (js/console.log "[epupp:squirrel] Migrated from old storage key"))
+          (js/console.log "[epupp:squirrel] Loaded" (count posts) "posts"))
         (catch :default e
-          (js/console.error "[epupp:tracker] Failed to load state:" e))))))
+          (js/console.error "[epupp:squirrel] Failed to load state:" e))))))
 
 (def schedule-save! (make-debounced 3000 save-state!))
 
@@ -432,7 +432,7 @@
   [{:source :btn-aria :pattern #"(?i)react"    :engagement :engaged/liked}
    {:source :btn-aria :pattern #"(?i)comment"  :engagement :engaged/commented}
    {:source :text     :pattern #"(?i)repost"   :engagement :engaged/reposted}
-   {:source :text     :pattern #"(?i)\bsave\b"  :engagement :engaged/saved}
+   {:source :text     :pattern #"(?i)\bsave\b" :engagement :engaged/saved}
    {:source :text     :pattern #"(?i)more"     :engagement :engaged/expanded}])
 
 (defn interpret-click [click-context]
@@ -450,11 +450,11 @@
                 now (.toISOString (js/Date.))
                 raw (scrape-post-element post-el)
                 snapshot (raw->post-snapshot raw now)]
-            (swap! !state track-post urn snapshot engagement now)
+            (swap! !state hoard-post urn snapshot engagement now)
             (schedule-save!)
-            (js/console.log "[epupp:tracker] Engagement:" (name engagement) urn)))))
+            (js/console.log "[epupp:squirrel] Engagement:" (name engagement) urn)))))
     (catch :default err
-      (js/console.error "[epupp:tracker] Engagement handler error:" err))))
+      (js/console.error "[epupp:squirrel] Engagement handler error:" err))))
 
 (defn attach-engagement-listener! []
   (attach-listener! js/document.body "click" :resource/engagement-handler handle-engagement! {:capture? true}))
@@ -476,7 +476,7 @@
     (swap! !resources assoc :resource/iframe-engagement-handler nil)))
 
 (defn nav-button-view [{:keys [post-count open?]}]
-  [:li.global-nav__primary-item {:id "epupp-tracker-nav-btn"
+  [:li.global-nav__primary-item {:id "epupp-squirrel-nav-btn"
                                  :style {:margin-left "1rem"}}
    [:button {:type "button"
              :style {:background "none" :border "none" :cursor "pointer"
@@ -487,13 +487,13 @@
                            (swap! !state update :ui/panel-open? not))}}
     [:span {:style {:position "relative" :display "flex" :align-items "center"
                     :justify-content "center"}
-            :title (str post-count " posts tracked")}
+            :title (str post-count " posts hoarded")}
      [:svg {:viewBox "0 0 24 24" :width "24" :height "24" :fill "currentColor"
             :xmlns "http://www.w3.org/2000/svg"}
       [:path {:d "M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"}]]]
     [:span {:style {:font-size "12px" :color "inherit" :line-height "1"
                     :display "inline-flex" :align-items "center" :gap "2px"}}
-     "Tracker"
+     "Squirrel"
      [:span {:style {:border-left "5px solid transparent"
                      :border-right "5px solid transparent"
                      :border-top "6px solid currentColor"}}]]]])
@@ -508,10 +508,10 @@
 (defn ensure-nav-button! []
   (when-let [nav-list (q-doc :sel/nav-items-list)]
     (let [owner-doc (.-ownerDocument nav-list)
-          mount-el (or (.getElementById owner-doc "epupp-tracker-nav-mount")
+          mount-el (or (.getElementById owner-doc "epupp-squirrel-nav-mount")
                        (let [el (.createElement owner-doc "div")
                              me-item (find-me-nav-item nav-list)]
-                         (set! (.-id el) "epupp-tracker-nav-mount")
+                         (set! (.-id el) "epupp-squirrel-nav-mount")
                          (set! (.. el -style -display) "contents")
                          (if me-item
                            (.insertBefore nav-list el me-item)
@@ -519,7 +519,7 @@
                          (swap! !resources assoc :resource/nav-mount el)
                          el))]
       (r/render mount-el
-                (nav-button-view {:post-count (count (:tracker/posts @!state))
+                (nav-button-view {:post-count (count (:squirrel/posts @!state))
                                   :open? (:ui/panel-open? @!state)})))))
 
 (defn inject-pin-button! [post-el urn]
@@ -528,7 +528,7 @@
           target-container (when overflow-btn (.-parentElement overflow-btn))
           owner-doc (.-ownerDocument post-el)
           btn (.createElement owner-doc "button")
-          pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
+          pinned? (get-in @!state [:squirrel/posts urn :post/pinned?])]
       (when target-container
         (.setAttribute btn "data-epupp-pin" urn)
         (set! (.. btn -style -cssText)
@@ -547,11 +547,11 @@
                                    raw (scrape-post-element post-el)
                                    snapshot (raw->post-snapshot raw now)]
                                (swap! !state (fn [s]
-                                               (let [s (if (get-in s [:tracker/posts urn])
+                                               (let [s (if (get-in s [:squirrel/posts urn])
                                                          s
-                                                         (track-post s urn snapshot :engaged/pinned now))]
+                                                         (hoard-post s urn snapshot :engaged/pinned now))]
                                                  (toggle-pin s urn))))
-                               (let [now-pinned? (get-in @!state [:tracker/posts urn :post/pinned?])]
+                               (let [now-pinned? (get-in @!state [:squirrel/posts urn :post/pinned?])]
                                  (set! (.-textContent btn) (if now-pinned? "\u2605" "\u2606"))
                                  (set! (.. btn -style -color) (if now-pinned? "#f59e0b" "#666")))
                                (schedule-save!))))
@@ -562,7 +562,7 @@
     (when-let [el (q-doc :sel/me-profile-link)]
       (when-let [slug (extract-profile-slug (.getAttribute el "href"))]
         (swap! !state assoc :nav/current-user-slug slug)
-        (js/console.log "[epupp:tracker] Current user detected:" slug)
+        (js/console.log "[epupp:squirrel] Current user detected:" slug)
         slug))))
 
 (defn scan-post! [post-el]
@@ -577,9 +577,9 @@
           (when (own-post? current-user-slug raw)
             (let [now (.toISOString (js/Date.))
                   snapshot (raw->post-snapshot raw now)]
-              (swap! !state track-own-post urn snapshot)
+              (swap! !state hoard-own-post urn snapshot)
               (schedule-save!)
-              (js/console.log "[epupp:tracker] Own post detected:" urn))))))))
+              (js/console.log "[epupp:squirrel] Own post detected:" urn))))))))
 
 (defn scan-visible-posts! []
   (doseq [post-el (qa-doc :sel/post-container)]
@@ -613,7 +613,7 @@
                  :resource/iframe-feed-observer observer
                  :resource/iframe-observed-body iframe-body))
         (attach-iframe-engagement-listener! iframe-body)
-        (js/console.log "[epupp:tracker] Attached to preload iframe")))))
+        (js/console.log "[epupp:squirrel] Attached to preload iframe")))))
 
 (defn process-mutations! []
   (try
@@ -621,7 +621,7 @@
     (scan-visible-posts!)
     (ensure-nav-button!)
     (catch :default err
-      (js/console.error "[epupp:tracker] Mutation processing error:" err))))
+      (js/console.error "[epupp:squirrel] Mutation processing error:" err))))
 
 (defn disconnect-feed-observer! []
   (when-let [observer (:resource/feed-observer @!resources)]
@@ -647,7 +647,7 @@
     (.observe observer js/document.body
               #js {:childList true :subtree true})
     (swap! !resources assoc :resource/feed-observer observer)
-    (js/console.log "[epupp:tracker] Feed observer started")))
+    (js/console.log "[epupp:squirrel] Feed observer started")))
 
 (def engagement-labels
   {:engaged/liked "Liked"
@@ -739,7 +739,7 @@
     nil))
 
 (defn article-mini-card [{:keys [post/article-title post/article-url
-                                  post/article-image-url post/media-image-url]}]
+                                 post/article-image-url post/media-image-url]}]
   (let [domain (extract-domain article-url)
         img-url (or article-image-url media-image-url)]
     [:div {:style {:display "flex" :gap "8px" :padding "8px"
@@ -796,7 +796,7 @@
      [:button {:style {:background "none" :border "none" :cursor "pointer"
                        :color "#ccc" :font-size "14px" :padding "0"
                        :line-height "1" :margin-left "2px"}
-               :title "Remove from tracker"
+               :title "Remove from hoard"
                :on {:click (fn [e]
                              (.stopPropagation e)
                              (swap! !state remove-post urn)
@@ -826,11 +826,11 @@
        eng])]])
 
 (defn panel-view [state]
-  (let [{:keys [tracker/posts ui/search-text ui/filter-engagement]} state
+  (let [{:keys [squirrel/posts ui/search-text ui/filter-engagement]} state
         filtered (filter-posts posts state)
         sorted (sort-posts filtered)
         post-count (count posts)]
-    [:div {:id "epupp-tracker-panel"
+    [:div {:id "epupp-squirrel-panel"
            :style {:position "fixed" :top "52px" :right "0" :bottom "0"
                    :width "380px" :background "white" :z-index "9999"
                    :box-shadow "-2px 0 12px rgba(0,0,0,0.15)"
@@ -840,7 +840,7 @@
      [:div {:style {:padding "12px 16px" :border-bottom "1px solid #e0e0e0"
                     :display "flex" :justify-content "space-between" :align-items "center"}}
       [:span {:style {:font-weight "700" :font-size "16px"}}
-       (str "Tracked Posts (" post-count ")")]
+       (str "Hoarded Posts (" post-count ")")]
       [:button {:style {:background "none" :border "none" :cursor "pointer"
                         :font-size "20px" :color "#666" :padding "0 4px"}
                 :on {:click (fn [_] (swap! !state assoc :ui/panel-open? false))}}
@@ -874,7 +874,7 @@
         (for [post sorted]
           (post-card post))
         [:div {:style {:padding "32px" :text-align "center" :color "#999"}}
-         "No tracked posts yet"])]]))
+         "No hoarded posts yet"])]]))
 
 (defn render-panel! []
   (let [container (:resource/panel-container @!resources)]
@@ -884,35 +884,35 @@
 
 (defn attach-escape-handler! []
   (attach-listener! js/document "keydown" :resource/keydown-handler
-    (fn [e]
-      (when (and (= (.-key e) "Escape")
-                 (:ui/panel-open? @!state))
-        (swap! !state assoc :ui/panel-open? false)))
-    {}))
+                    (fn [e]
+                      (when (and (= (.-key e) "Escape")
+                                 (:ui/panel-open? @!state))
+                        (swap! !state assoc :ui/panel-open? false)))
+                    {}))
 
 (defn detach-escape-handler! []
   (detach-listener! js/document "keydown" :resource/keydown-handler {}))
 
 (defn attach-click-outside-handler! []
   (attach-listener! js/document "click" :resource/click-outside-handler
-    (fn [e]
-      (when (:ui/panel-open? @!state)
-        (let [panel (js/document.getElementById "epupp-tracker-panel")
-              nav-btn (js/document.getElementById "epupp-tracker-nav-btn")]
-          (when (and panel
-                     (not (.contains panel (.-target e)))
-                     (or (nil? nav-btn)
-                         (not (.contains nav-btn (.-target e)))))
-            (swap! !state assoc :ui/panel-open? false)))))
-    {}))
+                    (fn [e]
+                      (when (:ui/panel-open? @!state)
+                        (let [panel (js/document.getElementById "epupp-squirrel-panel")
+                              nav-btn (js/document.getElementById "epupp-squirrel-nav-btn")]
+                          (when (and panel
+                                     (not (.contains panel (.-target e)))
+                                     (or (nil? nav-btn)
+                                         (not (.contains nav-btn (.-target e)))))
+                            (swap! !state assoc :ui/panel-open? false)))))
+                    {}))
 
 (defn detach-click-outside-handler! []
   (detach-listener! js/document "click" :resource/click-outside-handler {}))
 
 (defn attach-beforeunload-handler! []
   (attach-listener! js/window "beforeunload" :resource/beforeunload-handler
-    (fn [_e] (save-state!))
-    {}))
+                    (fn [_e] (save-state!))
+                    {}))
 
 (defn detach-beforeunload-handler! []
   (detach-listener! js/window "beforeunload" :resource/beforeunload-handler {}))
@@ -960,8 +960,8 @@
 
 (defn attach-popstate-handler! []
   (attach-listener! js/window "popstate" :resource/popstate-handler-fn
-    (fn [_e] (on-navigation!))
-    {}))
+                    (fn [_e] (on-navigation!))
+                    {}))
 
 (defn detach-popstate-handler! []
   (detach-listener! js/window "popstate" :resource/popstate-handler-fn {}))
@@ -1003,7 +1003,7 @@
                    (detect-current-user-slug!)
                    (scan-visible-posts!)) 1000)
   (selector-health-check!)
-  (js/console.log "[epupp:tracker] Initialized")
+  (js/console.log "[epupp:squirrel] Initialized")
   :initialized)
 
 (init!)
