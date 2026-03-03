@@ -730,8 +730,10 @@
 (defn detect-feed-refresh []
   (let [{:keys [seen]} @!viewport-buffer]
     (when (>= (count seen) 3)
-      (let [dom-urns (get-feed-urns)]
-        (not-any? dom-urns seen)))))
+      (let [dom-urns (get-feed-urns)
+            vanished (filterv (complement dom-urns) seen)]
+        (when (seq vanished)
+          vanished)))))
 
 (defn topmost-viewport-post-el []
   (some (fn [post]
@@ -757,30 +759,31 @@
 
 (defn inject-vanished-button! []
   (when-not (js/document.getElementById "epupp-squirrel-vanished-btn")
-    (let [{:keys [seen clones]} @!viewport-buffer
-          n (count seen)]
-      (when (pos? n)
-        (when-let [anchor (topmost-viewport-post-el)]
-          (let [mount (js/document.createElement "div")]
-            (r/render mount
-              (vanished-button-view
-               {:n n
-                :on-click (fn [_]
-                            (let [parent (.-parentElement mount)
-                                  ref (.-nextSibling mount)]
-                              (doseq [urn (reverse seen)]
-                                (when-let [clone (get clones urn)]
+    (when-let [vanished-urns (detect-feed-refresh)]
+      (let [{:keys [clones]} @!viewport-buffer
+            vanished-clones (keep (fn [urn] (when-let [c (get clones urn)] [urn c])) vanished-urns)
+            n (count vanished-clones)]
+        (when (pos? n)
+          (when-let [anchor (topmost-viewport-post-el)]
+            (let [mount (js/document.createElement "div")]
+              (r/render mount
+                (vanished-button-view
+                 {:n n
+                  :on-click (fn [_]
+                              (let [parent (.-parentElement mount)
+                                    ref (.-nextSibling mount)]
+                                (doseq [[_urn clone] (reverse vanished-clones)]
                                   (let [wrapper (js/document.createElement "div")]
                                     (set! (.. wrapper -style -cssText)
                                           "border-left: 3px solid #f59e0b;")
                                     (.setAttribute wrapper "data-epupp-rescued" "true")
                                     (.appendChild wrapper clone)
-                                    (.insertBefore parent wrapper ref))))
-                              (.removeChild parent mount)
-                              (reset-viewport-buffer!)
-                              (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))}))
-            (.insertBefore (.-parentElement anchor) mount anchor)
-            (js/console.log "[epupp:squirrel] Feed refresh detected, injected vanished-posts button")))))))
+                                    (.insertBefore parent wrapper ref)))
+                                (.removeChild parent mount)
+                                (reset-viewport-buffer!)
+                                (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))}))
+              (.insertBefore (.-parentElement anchor) mount anchor)
+              (js/console.log "[epupp:squirrel] Feed refresh detected, injected vanished-posts button"))))))))
 
 (defn create-viewport-observer! []
   (when-let [old (:resource/viewport-observer @!resources)]
