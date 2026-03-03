@@ -104,6 +104,37 @@
    :sel/user-avatar       ["img.global-nav__me-photo"]
    :sel/me-profile-link   ["a.profile-card-profile-link"]})
 
+(def engagement-labels
+  {:engaged/liked "Liked"
+   :engaged/commented "Commented"
+   :engaged/reposted "Reposted"
+   :engaged/saved "Saved"
+   :engaged/expanded "Expanded"
+   :engaged/pinned "Pinned"
+   :engaged/posted "Posted"
+   :engaged/visited "Visited"})
+
+(def media-labels
+  {:media/text "Text"
+   :media/image "Image"
+   :media/video "Video"
+   :media/article "Article"
+   :media/document "Document"
+   :media/carousel "Carousel"
+   :media/poll "Poll"
+   :media/celebration "Celebration"})
+
+(def media-filter-labels
+  "Filter groups for the UI. :other covers document, carousel, poll, celebration, etc."
+  [[:media/text "Text"]
+   [:media/image "Image"]
+   [:media/video "Video"]
+   [:media/article "Article"]
+   [:media/other "Other"]])
+
+(def other-media-types
+  #{:media/document :media/carousel :media/poll :media/celebration})
+
 (defn q
   "Query for first matching element using selector fallback chain."
   [context sel-key]
@@ -571,6 +602,97 @@
     (.removeEventListener (.-target old) "click" (.-handler old) true)
     (swap! !resources assoc :resource/iframe-engagement-handler nil)))
 
+(defn initials [author-name]
+  (when author-name
+    (->> (string/split author-name #" ")
+         (take 2)
+         (map #(subs % 0 1))
+         (string/join ""))))
+
+(defn extract-domain [url]
+  (when (and url (string? url))
+    (try
+      (.-hostname (js/URL. url))
+      (catch :default _ nil))))
+
+(defn media-thumbnail [{:keys [post/media-type post/media-image-url post/document-title]}]
+  (case media-type
+    :media/image
+    (when media-image-url
+      [:img {:src media-image-url
+             :style {:width "100%" :max-height "160px" :border-radius "6px"
+                     :object-fit "cover" :margin-bottom "6px"}}])
+    :media/video
+    (when media-image-url
+      [:div {:style {:position "relative" :width "100%" :max-height "160px"
+                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+       [:img {:src media-image-url
+              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+       [:div {:style {:position "absolute" :inset "0" :display "flex"
+                      :align-items "center" :justify-content "center"
+                      :background "rgba(0,0,0,0.3)"}}
+        [:span {:style {:color "white" :font-size "28px"}} "\u25B6"]]])
+    :media/document
+    [:div {:style {:width "100%" :padding "8px 12px" :border-radius "6px"
+                   :background "#f0f0f0" :display "flex" :align-items "center"
+                   :gap "8px" :margin-bottom "6px"}}
+     [:span {:style {:font-size "22px" :flex-shrink "0"}} "\uD83D\uDCC4"]
+     [:span {:style {:font-size "12px" :color "#444" :font-weight "600"
+                     :overflow "hidden" :text-overflow "ellipsis"
+                     :display "-webkit-box" :-webkit-line-clamp "2"
+                     :-webkit-box-orient "vertical"}}
+      (or document-title "Document")]]
+    :media/carousel
+    (if media-image-url
+      [:div {:style {:position "relative" :width "100%" :max-height "160px"
+                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+       [:img {:src media-image-url
+              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+       [:div {:style {:position "absolute" :bottom "4px" :right "4px"
+                      :background "rgba(0,0,0,0.6)" :color "white"
+                      :padding "2px 6px" :border-radius "4px" :font-size "10px"}}
+        "\uD83C\uDFA0 Carousel"]]
+      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                     :background "#f0f0f0" :display "flex" :align-items "center"
+                     :justify-content "center" :margin-bottom "6px"}}
+       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDFA0 Carousel"]])
+    :media/celebration
+    (if media-image-url
+      [:img {:src media-image-url
+             :style {:width "100%" :max-height "160px" :border-radius "6px"
+                     :object-fit "cover" :margin-bottom "6px"}}]
+      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                     :background "#f0f0f0" :display "flex" :align-items "center"
+                     :justify-content "center" :margin-bottom "6px"}}
+       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDF89 Celebration"]])
+    :media/poll
+    [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                   :background "#f0f0f0" :display "flex" :align-items "center"
+                   :justify-content "center" :margin-bottom "6px"}}
+     [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCCA Poll"]]
+    nil))
+
+(defn article-mini-card [{:keys [post/article-title post/article-url
+                                 post/article-image-url post/media-image-url]}]
+  (let [domain (extract-domain article-url)
+        img-url (or article-image-url media-image-url)]
+    [:div {:style {:display "flex" :gap "8px" :padding "8px"
+                   :background "#f8f9fa" :border-radius "6px"
+                   :border "1px solid #e8e8e8" :margin-bottom "6px"}}
+     (when img-url
+       [:img {:src img-url
+              :style {:width "48px" :height "48px" :border-radius "4px"
+                      :object-fit "cover" :flex-shrink "0"}}])
+     [:div {:style {:flex "1" :min-width "0"}}
+      (when article-title
+        [:div {:style {:font-size "12px" :font-weight "600" :color "#333"
+                       :white-space "nowrap" :overflow "hidden"
+                       :text-overflow "ellipsis"}}
+         article-title])
+      (when domain
+        [:div {:style {:font-size "10px" :color "#999" :margin-top "2px"}}
+         domain])]]))
+
 (defn nav-button-view [{:keys [post-count open?]}]
   [:li.global-nav__primary-item {:id "epupp-squirrel-nav-btn"
                                  :style {:margin-left "1rem"}}
@@ -704,25 +826,26 @@
 
 (def viewport-buffer-size 7)
 
-(defonce !viewport-buffer (atom {:seen [] :clones {}}))
+(defonce !viewport-buffer (atom {:seen [] :snapshots {}}))
 
 (defn buffer-viewport-post! [urn post-el]
-  (swap! !viewport-buffer
-         (fn [{:keys [seen clones]}]
-           (let [new-clone (.cloneNode post-el true)
-                 new-seen (if (some #{urn} seen)
-                            seen
-                            (let [appended (conj seen urn)]
-                              (if (> (count appended) viewport-buffer-size)
-                                (subvec appended (- (count appended) viewport-buffer-size))
-                                appended)))
-                 kept-urns (set new-seen)]
-             {:seen new-seen
-              :clones (-> (select-keys clones kept-urns)
-                          (assoc urn new-clone))}))))
+  (let [raw (scrape-post-element post-el)
+        snapshot (raw->post-snapshot raw (.toISOString (js/Date.)))]
+    (swap! !viewport-buffer
+           (fn [{:keys [seen snapshots]}]
+             (let [new-seen (if (some #{urn} seen)
+                              seen
+                              (let [appended (conj seen urn)]
+                                (if (> (count appended) viewport-buffer-size)
+                                  (subvec appended (- (count appended) viewport-buffer-size))
+                                  appended)))
+                   kept-urns (set new-seen)]
+               {:seen new-seen
+                :snapshots (-> (select-keys (or snapshots {}) kept-urns)
+                               (assoc urn snapshot))})))))
 
 (defn reset-viewport-buffer! []
-  (reset! !viewport-buffer {:seen [] :clones {}}))
+  (reset! !viewport-buffer {:seen [] :snapshots {}}))
 
 (defn get-feed-urns []
   (set (keep #(.getAttribute % "data-urn") (qa-doc :sel/post-container))))
@@ -743,9 +866,96 @@
               post)))
         (qa-doc :sel/post-container)))
 
+(defn vanished-post-card [{:post/keys [urn author-name author-avatar-url
+                                       author-headline text-preview media-type] :as post}
+                          {:keys [on-pin]}]
+  (let [pinned? (get-in @!state [:squirrel/posts urn :post/pinned?])]
+    [:div {:replicant/key urn
+           :style {:padding "12px" :border-bottom "1px solid #e0e0e0"
+                   :border-left "3px solid #f59e0b"
+                   :background (if pinned? "#fffde7" "white")}}
+     [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
+      (if author-avatar-url
+        [:img {:src author-avatar-url
+               :style {:width "32px" :height "32px" :border-radius "50%"}}]
+        [:div {:style {:width "32px" :height "32px" :border-radius "50%"
+                       :background "#0a66c2" :color "white" :display "flex"
+                       :align-items "center" :justify-content "center"
+                       :font-size "12px" :font-weight "bold"}}
+         (initials author-name)])
+      [:div {:style {:flex "1" :min-width "0"}}
+       [:div {:style {:font-weight "600" :font-size "13px" :white-space "nowrap"
+                      :overflow "hidden" :text-overflow "ellipsis"}}
+        (or author-name "Unknown")]
+       [:div {:style {:font-size "11px" :color "#666" :white-space "nowrap"
+                      :overflow "hidden" :text-overflow "ellipsis"}}
+        (or author-headline "")]]
+      [:div {:style {:display "flex" :align-items "center" :gap "4px"
+                     :flex-shrink "0" :margin-top "2px"}}
+       [:button {:style {:background "none" :border "none" :cursor "pointer"
+                         :font-size "16px" :padding "4px" :line-height "1"
+                         :color (if pinned? "#f59e0b" "#666")}
+                 :title (if pinned? "Unpin" "Pin to hoard")
+                 :on {:click (fn [e]
+                               (.stopPropagation e)
+                               (on-pin urn post))}}
+        (if pinned? "\u2605" "\u2606")]
+       [:button {:style {:background "none" :border "none" :cursor "pointer"
+                         :font-size "13px" :padding "4px" :line-height "1"
+                         :color "#0a66c2"}
+                 :title "Open post"
+                 :on {:click (fn [e]
+                               (.stopPropagation e)
+                               (js/window.open (str "https://www.linkedin.com/feed/update/" urn "/") "_blank"))}}
+        "\u2197"]]]
+     (when text-preview
+       [:div {:style {:font-size "12px" :color "#333" :margin-bottom "6px"
+                      :display "-webkit-box" :-webkit-line-clamp "2"
+                      :-webkit-box-orient "vertical" :overflow "hidden"}}
+        text-preview])
+     (media-thumbnail post)
+     (when (= media-type :media/article)
+       (article-mini-card post))
+     [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
+      (when media-type
+        [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
+                        :border-radius "4px" :font-size "10px"}}
+         (get media-labels media-type "?")])]]))
+
+(defn render-vanished-cards! [mount snapshots]
+  (let [on-pin (fn [urn snapshot]
+                 (let [now (.toISOString (js/Date.))]
+                   (swap! !state (fn [s]
+                                  (let [s (if (get-in s [:squirrel/posts urn])
+                                            s
+                                            (hoard-post s urn snapshot :engaged/pinned now))]
+                                    (toggle-pin s urn))))
+                   (schedule-save!)
+                   (render-vanished-cards! mount snapshots)))
+        on-dismiss (fn [_]
+                     (.removeChild (.-parentElement mount) mount)
+                     (reset-viewport-buffer!)
+                     (js/console.log "[epupp:squirrel] Dismissed vanished cards"))]
+    (r/render mount
+      [:div {:id "epupp-squirrel-vanished-container"
+             :style {:border-radius "8px" :overflow "hidden"
+                     :border "2px solid #f59e0b" :margin "8px 0"}}
+       [:div {:style {:padding "8px 12px" :background "#fffde7"
+                      :display "flex" :align-items "center" :gap "8px"}}
+        [:div {:style {:flex 1}}
+         (epupp-header :size 20 :title "Squirrel" :tagline
+                       (str (count snapshots) " vanished posts"))]
+        [:button {:style {:background "none" :border "none" :cursor "pointer"
+                          :font-size "18px" :color "#92400e" :padding "4px"
+                          :line-height 1}
+                  :title "Dismiss"
+                  :on {:click on-dismiss}}
+         "\u00D7"]]
+       (for [snapshot snapshots]
+         (vanished-post-card snapshot {:on-pin on-pin}))])))
+
 (defn vanished-button-view [{:keys [n on-click on-dismiss]}]
-  [:div {:id "epupp-squirrel-vanished-btn"
-         :style {:padding "12px 16px"
+  [:div {:style {:padding "12px 16px"
                  :margin "8px 0"
                  :background "#fffde7"
                  :border "2px solid #f59e0b"
@@ -766,30 +976,21 @@
     "\u00D7"]])
 
 (defn inject-vanished-button! []
-  (when-not (js/document.getElementById "epupp-squirrel-vanished-btn")
+  (when-not (js/document.getElementById "epupp-squirrel-vanished-mount")
     (when-let [vanished-urns (detect-feed-refresh)]
-      (let [{:keys [clones]} @!viewport-buffer
-            vanished-clones (keep (fn [urn] (when-let [c (get clones urn)] [urn c])) vanished-urns)
-            n (count vanished-clones)]
+      (let [{:keys [snapshots]} @!viewport-buffer
+            vanished-snapshots (keep (fn [urn] (get snapshots urn)) vanished-urns)
+            n (count vanished-snapshots)]
         (when (pos? n)
           (when-let [anchor (topmost-viewport-post-el)]
             (let [mount (js/document.createElement "div")]
+              (set! (.-id mount) "epupp-squirrel-vanished-mount")
               (r/render mount
                 (vanished-button-view
                  {:n n
                   :on-click (fn [_]
-                              (let [parent (.-parentElement mount)
-                                    ref (.-nextSibling mount)]
-                                (doseq [[_urn clone] (reverse vanished-clones)]
-                                  (let [wrapper (js/document.createElement "div")]
-                                    (set! (.. wrapper -style -cssText)
-                                          "border-left: 3px solid #f59e0b;")
-                                    (.setAttribute wrapper "data-epupp-rescued" "true")
-                                    (.appendChild wrapper clone)
-                                    (.insertBefore parent wrapper ref)))
-                                (.removeChild parent mount)
-                                (reset-viewport-buffer!)
-                                (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))
+                              (render-vanished-cards! mount vanished-snapshots)
+                              (js/console.log "[epupp:squirrel] Rendered" n "vanished post cards"))
                   :on-dismiss (fn [e]
                                 (.stopPropagation e)
                                 (.removeChild (.-parentElement mount) mount)
@@ -889,37 +1090,6 @@
     (swap! !resources assoc :resource/feed-observer observer)
     (js/console.log "[epupp:squirrel] Feed observer started")))
 
-(def engagement-labels
-  {:engaged/liked "Liked"
-   :engaged/commented "Commented"
-   :engaged/reposted "Reposted"
-   :engaged/saved "Saved"
-   :engaged/expanded "Expanded"
-   :engaged/pinned "Pinned"
-   :engaged/posted "Posted"
-   :engaged/visited "Visited"})
-
-(def media-labels
-  {:media/text "Text"
-   :media/image "Image"
-   :media/video "Video"
-   :media/article "Article"
-   :media/document "Document"
-   :media/carousel "Carousel"
-   :media/poll "Poll"
-   :media/celebration "Celebration"})
-
-(def media-filter-labels
-  "Filter groups for the UI. :other covers document, carousel, poll, celebration, etc."
-  [[:media/text "Text"]
-   [:media/image "Image"]
-   [:media/video "Video"]
-   [:media/article "Article"]
-   [:media/other "Other"]])
-
-(def other-media-types
-  #{:media/document :media/carousel :media/poll :media/celebration})
-
 (defn format-relative-time [iso-str now-ms]
   (let [then (.getTime (js/Date. iso-str))
         diff-ms (- now-ms then)
@@ -952,97 +1122,6 @@
 
 (defn sort-posts [posts]
   (reverse (sort-by :post/last-engaged posts)))
-
-(defn initials [author-name]
-  (when author-name
-    (->> (string/split author-name #" ")
-         (take 2)
-         (map #(subs % 0 1))
-         (string/join ""))))
-
-(defn extract-domain [url]
-  (when (and url (string? url))
-    (try
-      (.-hostname (js/URL. url))
-      (catch :default _ nil))))
-
-(defn media-thumbnail [{:keys [post/media-type post/media-image-url post/document-title]}]
-  (case media-type
-    :media/image
-    (when media-image-url
-      [:img {:src media-image-url
-             :style {:width "100%" :max-height "160px" :border-radius "6px"
-                     :object-fit "cover" :margin-bottom "6px"}}])
-    :media/video
-    (when media-image-url
-      [:div {:style {:position "relative" :width "100%" :max-height "160px"
-                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
-       [:img {:src media-image-url
-              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
-       [:div {:style {:position "absolute" :inset "0" :display "flex"
-                      :align-items "center" :justify-content "center"
-                      :background "rgba(0,0,0,0.3)"}}
-        [:span {:style {:color "white" :font-size "28px"}} "\u25B6"]]])
-    :media/document
-    [:div {:style {:width "100%" :padding "8px 12px" :border-radius "6px"
-                   :background "#f0f0f0" :display "flex" :align-items "center"
-                   :gap "8px" :margin-bottom "6px"}}
-     [:span {:style {:font-size "22px" :flex-shrink "0"}} "\uD83D\uDCC4"]
-     [:span {:style {:font-size "12px" :color "#444" :font-weight "600"
-                     :overflow "hidden" :text-overflow "ellipsis"
-                     :display "-webkit-box" :-webkit-line-clamp "2"
-                     :-webkit-box-orient "vertical"}}
-      (or document-title "Document")]]
-    :media/carousel
-    (if media-image-url
-      [:div {:style {:position "relative" :width "100%" :max-height "160px"
-                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
-       [:img {:src media-image-url
-              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
-       [:div {:style {:position "absolute" :bottom "4px" :right "4px"
-                      :background "rgba(0,0,0,0.6)" :color "white"
-                      :padding "2px 6px" :border-radius "4px" :font-size "10px"}}
-        "\uD83C\uDFA0 Carousel"]]
-      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
-                     :background "#f0f0f0" :display "flex" :align-items "center"
-                     :justify-content "center" :margin-bottom "6px"}}
-       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDFA0 Carousel"]])
-    :media/celebration
-    (if media-image-url
-      [:img {:src media-image-url
-             :style {:width "100%" :max-height "160px" :border-radius "6px"
-                     :object-fit "cover" :margin-bottom "6px"}}]
-      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
-                     :background "#f0f0f0" :display "flex" :align-items "center"
-                     :justify-content "center" :margin-bottom "6px"}}
-       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDF89 Celebration"]])
-    :media/poll
-    [:div {:style {:width "100%" :height "48px" :border-radius "6px"
-                   :background "#f0f0f0" :display "flex" :align-items "center"
-                   :justify-content "center" :margin-bottom "6px"}}
-     [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCCA Poll"]]
-    nil))
-
-(defn article-mini-card [{:keys [post/article-title post/article-url
-                                 post/article-image-url post/media-image-url]}]
-  (let [domain (extract-domain article-url)
-        img-url (or article-image-url media-image-url)]
-    [:div {:style {:display "flex" :gap "8px" :padding "8px"
-                   :background "#f8f9fa" :border-radius "6px"
-                   :border "1px solid #e8e8e8" :margin-bottom "6px"}}
-     (when img-url
-       [:img {:src img-url
-              :style {:width "48px" :height "48px" :border-radius "4px"
-                      :object-fit "cover" :flex-shrink "0"}}])
-     [:div {:style {:flex "1" :min-width "0"}}
-      (when article-title
-        [:div {:style {:font-size "12px" :font-weight "600" :color "#333"
-                       :white-space "nowrap" :overflow "hidden"
-                       :text-overflow "ellipsis"}}
-         article-title])
-      (when domain
-        [:div {:style {:font-size "10px" :color "#999" :margin-top "2px"}}
-         domain])]]))
 
 (defn post-card [{:post/keys [urn author-name author-avatar-url
                               author-headline text-preview media-type
