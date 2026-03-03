@@ -1116,7 +1116,7 @@
      ;; Search
      [:div {:style {:padding "8px 16px"}}
       [:input {:type "text"
-               :placeholder "Search posts..."
+               :placeholder "Text for filtering hoarded posts"
                :value (or search-text "")
                :style {:width "100%" :padding "6px 10px" :border "1px solid #ccc"
                        :border-radius "4px" :font-size "13px" :box-sizing "border-box"}
