@@ -21,21 +21,23 @@
        "M34.9792 36.9613L75.3818 0.999997L15.0206 37.2308L44.6048 50.8483L23.4278 84.9488L85.5 67.5L48.8818 66L55.9177 47.6053L34.9792 36.9613Z"
        :fill accent-color}]]))
 
-(defn epupp-header [& {:keys [size tagline?]
+(defn epupp-header [& {:keys [size title tagline]
                        :or {size 36
-                            tagline? true}}]
-  [:div {:style {:font-size "calc( " 24/36 " * 1rem)"
-                 :display "flex"
-                 :align-items "center"
-                 :gap "8px"}}
-   (epupp-icon :size size)
-   [:span {:style {:font-weight 500
+                            title "Epupp"
+                            tagline "Live Tamper your Web"}}]
+  (let [font-size (* size (/ 24 36))]
+    [:div {:style {:font-size (str font-size "px")
                    :display "flex"
-                   :align-items "flex-end"}}
-    "Epupp"
-    (when tagline?
-      [:span {:style {:font-size "1rem"
-                      :font-style "italic"
-                      :font-weight 400
-                      :margin-left "4px"}}
-       "Live Tamper your Web"])]])
+                   :align-items "center"
+                   :gap "8px"}}
+     (epupp-icon :size size)
+     [:span {:style {:font-weight 500
+                     :display "flex"
+                     :align-items "baseline"}}
+      title
+      (when tagline
+        [:span {:style {:font-size (str (* 0.75 font-size) "px")
+                        :font-style "italic"
+                        :font-weight 400
+                        :margin-left "4px"}}
+         tagline])]]))
