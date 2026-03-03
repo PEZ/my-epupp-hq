@@ -30,6 +30,7 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 - Most of `clojure.core` is available
 - Keywords are true Clojure keywords (unlike Squint where they're strings)
 - State persists across REPL evaluations within a page (resets on reload)
+- No script modularity: Epupp userscripts are currently self-contained. You cannot split code across multiple scripts or create shared library modules of your own.
 
 ## Clojure Principles
 
@@ -256,6 +257,10 @@ When REPL is connected, read operations are always available. Write operations a
     (js/console.log "Data:" data)
     data))
 ```
+
+### Epupp Branded Headers, Banners, Buttons
+
+There is some hiccup for presenting the Epupp icon with optional title and sub-title in [snippets/epupp_branding.cljs](snippets/epupp_branding.cljs).
 
 ## Connection and Setup
 
