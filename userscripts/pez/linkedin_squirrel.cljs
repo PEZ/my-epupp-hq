@@ -208,6 +208,7 @@
                              (some-> (q post-el :sel/video) .-parentElement (.querySelector "img") (.getAttribute "src")))
    :raw/has-document? (some? (q post-el :sel/document))
    :raw/has-carousel? (some? (q post-el :sel/carousel))
+   :raw/carousel-image-url (some-> (q post-el :sel/carousel) (.querySelector "img") (.getAttribute "src"))
    :raw/has-poll? (some? (q post-el :sel/poll))
    :raw/has-celebration? (some? (q post-el :sel/celebration))
    :raw/celebration-image-url (some-> (q post-el :sel/celebration) (.querySelector "img") (.getAttribute "src"))
@@ -252,6 +253,7 @@
              :post/media-type media-type
              :post/media-image-url (or (:raw/video-poster-url raw-data)
                                        (:raw/image-url raw-data)
+                                       (:raw/carousel-image-url raw-data)
                                        (:raw/celebration-image-url raw-data))
              :post/reshare? (:raw/has-reshare? raw-data)
              :post/engagements #{}
@@ -801,10 +803,33 @@
                    :justify-content "center" :margin-bottom "6px"}}
      [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCC4 Document"]]
     :media/carousel
+    (if media-image-url
+      [:div {:style {:position "relative" :width "100%" :max-height "160px"
+                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+       [:img {:src media-image-url
+              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+       [:div {:style {:position "absolute" :bottom "4px" :right "4px"
+                      :background "rgba(0,0,0,0.6)" :color "white"
+                      :padding "2px 6px" :border-radius "4px" :font-size "10px"}}
+        "\uD83C\uDFA0 Carousel"]]
+      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                     :background "#f0f0f0" :display "flex" :align-items "center"
+                     :justify-content "center" :margin-bottom "6px"}}
+       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDFA0 Carousel"]])
+    :media/celebration
+    (if media-image-url
+      [:img {:src media-image-url
+             :style {:width "100%" :max-height "160px" :border-radius "6px"
+                     :object-fit "cover" :margin-bottom "6px"}}]
+      [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+                     :background "#f0f0f0" :display "flex" :align-items "center"
+                     :justify-content "center" :margin-bottom "6px"}}
+       [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDF89 Celebration"]])
+    :media/poll
     [:div {:style {:width "100%" :height "48px" :border-radius "6px"
                    :background "#f0f0f0" :display "flex" :align-items "center"
                    :justify-content "center" :margin-bottom "6px"}}
-     [:span {:style {:font-size "18px" :color "#666"}} "\uD83C\uDFA0 Carousel"]]
+     [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCCA Poll"]]
     nil))
 
 (defn article-mini-card [{:keys [post/article-title post/article-url
