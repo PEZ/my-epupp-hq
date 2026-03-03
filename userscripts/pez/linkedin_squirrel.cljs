@@ -493,12 +493,60 @@
       (.removeEventListener target event handler capture?)
       (swap! !resources assoc resource-key nil))))
 
+(defn merge-post
+  "Merge two versions of the same post. Unions engagements, keeps max
+   last-engaged, preserves pinned if either is pinned."
+  [a b]
+  (-> (if (pos? (compare (:post/last-engaged a) (:post/last-engaged b))) a b)
+      (update :post/engagements into (:post/engagements a))
+      (update :post/engagements into (:post/engagements b))
+      (assoc :post/pinned? (or (:post/pinned? a) (:post/pinned? b)))))
+
+(defn merge-post-states
+  "Merge two post state maps. Posts in both get merged; posts in only one are kept."
+  [state-a state-b]
+  (let [posts-a (:squirrel/posts state-a)
+        posts-b (:squirrel/posts state-b)
+        all-urns (into (set (keys posts-a)) (keys posts-b))
+        merged-posts (into {}
+                       (map (fn [urn]
+                              (let [a (get posts-a urn)
+                                    b (get posts-b urn)]
+                                [urn (cond
+                                       (and a b) (merge-post a b)
+                                       a a
+                                       :else b)])))
+                       all-urns)
+        base-index (if (>= (count (:squirrel/index state-a))
+                           (count (:squirrel/index state-b)))
+                     (:squirrel/index state-a)
+                     (:squirrel/index state-b))
+        base-set (set base-index)
+        extra (remove base-set all-urns)]
+    {:squirrel/posts merged-posts
+     :squirrel/index (into (vec base-index) extra)}))
+
+(defn read-persisted-state []
+  (when-let [raw (storage-get storage-key)]
+    (try
+      (let [{:keys [posts index]} (clojure.edn/read-string raw)]
+        {:squirrel/posts (or posts {})
+         :squirrel/index (or index [])})
+      (catch :default _ nil))))
+
 (defn save-state! []
   (swap! !state prune-posts)
-  (let [{:keys [squirrel/posts squirrel/index]} @!state
+  (let [in-memory {:squirrel/posts (:squirrel/posts @!state)
+                   :squirrel/index (:squirrel/index @!state)}
+        persisted (read-persisted-state)
+        merged (if persisted
+                 (merge-post-states in-memory persisted)
+                 in-memory)
+        {:keys [squirrel/posts squirrel/index]} merged
         data {:posts posts :index index}]
+    (swap! !state assoc :squirrel/posts posts :squirrel/index index)
     (storage-set! storage-key (pr-str data))
-    (js/console.log "[epupp:squirrel] Saved" (count posts) "posts")))
+    (js/console.log "[epupp:squirrel] Saved" (count posts) "posts (merged)")))
 
 (defn load-state! []
   (let [from-new (storage-get storage-key)
@@ -847,6 +895,15 @@
 (defn reset-viewport-buffer! []
   (reset! !viewport-buffer {:seen [] :snapshots {}}))
 
+(defn buffer-visible-viewport-posts! []
+  (doseq [post-el (qa-doc :sel/post-container)]
+    (let [rect (.getBoundingClientRect post-el)]
+      (when (and (<= (.-top rect) (.-innerHeight js/window))
+                 (>= (.-bottom rect) 0))
+        (when-let [urn (extract-urn-from-element post-el)]
+          (when (activity-urn? urn)
+            (buffer-viewport-post! urn post-el)))))))
+
 (defn get-feed-urns []
   (set (keep #(.getAttribute % "data-urn") (qa-doc :sel/post-container))))
 
@@ -1067,6 +1124,7 @@
     (ensure-iframe-observers!)
     (scan-visible-posts!)
     (observe-feed-posts!)
+    (buffer-visible-viewport-posts!)
     (when (detect-feed-refresh)
       (inject-vanished-button!))
     (ensure-nav-button!)
@@ -1144,8 +1202,15 @@
    (post-card-body post
      [:div {:style {:display "flex" :align-items "center" :gap "4px"
                     :white-space "nowrap" :flex-shrink "0" :margin-top "2px"}}
-      (when pinned?
-        [:span {:style {:color "#f59e0b" :font-size "14px" :line-height "1"}} "\u2605"])
+      [:button {:style {:background "none" :border "none" :cursor "pointer"
+                        :font-size "14px" :padding "0" :line-height "1"
+                        :color (if pinned? "#f59e0b" "#ccc")}
+                :title (if pinned? "Unpin" "Pin")
+                :on {:click (fn [e]
+                              (.stopPropagation e)
+                              (swap! !state toggle-pin urn)
+                              (schedule-save!))}}
+       (if pinned? "\u2605" "\u2606")]
       [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
        (format-relative-time last-engaged (js/Date.now))]
       [:button {:style {:background "none" :border "none" :cursor "pointer"
@@ -1321,6 +1386,31 @@
 (defn detach-popstate-handler! []
   (detach-listener! js/window "popstate" :resource/popstate-handler-fn {}))
 
+(defn handle-storage-change! [e]
+  (when (= (.-key e) storage-key)
+    (when-let [new-val (.-newValue e)]
+      (try
+        (let [{:keys [posts index]} (clojure.edn/read-string new-val)
+              external {:squirrel/posts (or posts {})
+                        :squirrel/index (or index [])}
+              in-memory {:squirrel/posts (:squirrel/posts @!state)
+                         :squirrel/index (:squirrel/index @!state)}
+              merged (merge-post-states in-memory external)]
+          (swap! !state assoc
+                 :squirrel/posts (:squirrel/posts merged)
+                 :squirrel/index (:squirrel/index merged))
+          (js/console.log "[epupp:squirrel] Merged external state change,"
+                          (count (:squirrel/posts merged)) "posts"))
+        (catch :default err
+          (js/console.error "[epupp:squirrel] Storage merge error:" err))))))
+
+(defn attach-storage-listener! []
+  (attach-listener! js/window "storage" :resource/storage-handler
+                    handle-storage-change! {}))
+
+(defn detach-storage-listener! []
+  (detach-listener! js/window "storage" :resource/storage-handler {}))
+
 (defn teardown! []
   (disconnect-feed-observer!)
   (disconnect-viewport-observer!)
@@ -1331,6 +1421,7 @@
   (detach-click-outside-handler!)
   (detach-beforeunload-handler!)
   (detach-popstate-handler!)
+  (detach-storage-listener!)
   (stop-url-polling!)
   (save-state!)
   (when-let [m (:resource/nav-mount @!resources)]
@@ -1358,9 +1449,11 @@
   (attach-popstate-handler!)
   (start-url-polling!)
   (ensure-nav-button!)
+  (attach-storage-listener!)
   (js/setTimeout (fn []
                    (detect-current-user-slug!)
                    (scan-visible-posts!)
+                   (buffer-visible-viewport-posts!)
                    (hoard-visited-post!)) 1000)
   (selector-health-check!)
   (js/console.log "[epupp:squirrel] Initialized")
