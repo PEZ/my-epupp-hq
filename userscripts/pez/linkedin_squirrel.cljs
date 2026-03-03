@@ -57,6 +57,7 @@
    :sel/document          [".update-components-document__container"]
    :sel/carousel          [".update-components-carousel" ".feed-shared-carousel"]
    :sel/poll              [".update-components-poll" ".feed-shared-poll"]
+   :sel/celebration       [".update-components-celebration" ".feed-shared-celebration-image"]
    :sel/nav-bar           [".global-nav__nav" "#global-nav nav"]
    :sel/nav-items-list    [".global-nav__primary-items" "header nav ul"]
    :sel/nav-items         [".global-nav__primary-item" "header nav ul > li"]
@@ -208,6 +209,8 @@
    :raw/has-document? (some? (q post-el :sel/document))
    :raw/has-carousel? (some? (q post-el :sel/carousel))
    :raw/has-poll? (some? (q post-el :sel/poll))
+   :raw/has-celebration? (some? (q post-el :sel/celebration))
+   :raw/celebration-image-url (some-> (q post-el :sel/celebration) (.querySelector "img") (.getAttribute "src"))
    :raw/has-image? (some? (q post-el :sel/image-container))
    :raw/image-url (some-> (q post-el :sel/image-container) (.querySelector "img") (.getAttribute "src"))
    :raw/article-image-url (or (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
@@ -224,15 +227,17 @@
         trimmed))))
 
 (defn detect-media-type [{:keys [raw/has-article? raw/has-video? raw/has-document?
-                                 raw/has-carousel? raw/has-poll? raw/has-image?]}]
+                                 raw/has-carousel? raw/has-poll? raw/has-celebration?
+                                 raw/has-image?]}]
   (cond
-    has-article?  :media/article
-    has-video?    :media/video
-    has-document? :media/document
-    has-carousel? :media/carousel
-    has-poll?     :media/poll
-    has-image?    :media/image
-    :else         :media/text))
+    has-article?     :media/article
+    has-video?       :media/video
+    has-document?    :media/document
+    has-carousel?    :media/carousel
+    has-poll?        :media/poll
+    has-celebration? :media/celebration
+    has-image?       :media/image
+    :else            :media/text))
 
 (defn raw->post-snapshot [raw-data now]
   (let [media-type (detect-media-type raw-data)]
@@ -246,7 +251,8 @@
              :post/text-preview (text-preview (:raw/text raw-data))
              :post/media-type media-type
              :post/media-image-url (or (:raw/video-poster-url raw-data)
-                                       (:raw/image-url raw-data))
+                                       (:raw/image-url raw-data)
+                                       (:raw/celebration-image-url raw-data))
              :post/reshare? (:raw/has-reshare? raw-data)
              :post/engagements #{}
              :post/pinned? false}
@@ -712,7 +718,19 @@
    :media/article "Article"
    :media/document "Document"
    :media/carousel "Carousel"
-   :media/poll "Poll"})
+   :media/poll "Poll"
+   :media/celebration "Celebration"})
+
+(def media-filter-labels
+  "Filter groups for the UI. :other covers document, carousel, poll, celebration, etc."
+  [[:media/text "Text"]
+   [:media/image "Image"]
+   [:media/video "Video"]
+   [:media/article "Article"]
+   [:media/other "Other"]])
+
+(def other-media-types
+  #{:media/document :media/carousel :media/poll :media/celebration})
 
 (defn format-relative-time [iso-str now-ms]
   (let [then (.getTime (js/Date. iso-str))
@@ -740,7 +758,9 @@
     filter-engagement
     (filter #(contains? (:post/engagements %) filter-engagement))
     filter-media
-    (filter #(= (:post/media-type %) filter-media))))
+    (filter #(if (= filter-media :media/other)
+               (contains? other-media-types (:post/media-type %))
+               (= (:post/media-type %) filter-media)))))
 
 (defn sort-posts [posts]
   (reverse (sort-by :post/last-engaged posts)))
@@ -915,7 +935,7 @@
                                        (when (not= filter-engagement k) k)))}}
          label])]
      [:div {:style {:padding "4px 16px" :display "flex" :gap "4px" :flex-wrap "wrap"}}
-      (for [[k label] media-labels]
+      (for [[k label] media-filter-labels]
         [:button {:replicant/key (name k)
                   :style {:padding "3px 8px" :border-radius "12px" :font-size "11px"
                           :cursor "pointer" :border "1px solid #ccc"
