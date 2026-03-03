@@ -207,6 +207,10 @@
    :raw/video-poster-url (or (some-> (q post-el :sel/video) (.getAttribute "poster"))
                              (some-> (q post-el :sel/video) .-parentElement (.querySelector "img") (.getAttribute "src")))
    :raw/has-document? (some? (q post-el :sel/document))
+   :raw/document-title (some-> (q post-el :sel/document)
+                               (.querySelector "iframe")
+                               (.getAttribute "title")
+                               (string/replace #"^Document player for:\s*" ""))
    :raw/has-carousel? (some? (q post-el :sel/carousel))
    :raw/carousel-image-url (some-> (q post-el :sel/carousel) (.querySelector "img") (.getAttribute "src"))
    :raw/has-poll? (some? (q post-el :sel/poll))
@@ -258,6 +262,8 @@
              :post/reshare? (:raw/has-reshare? raw-data)
              :post/engagements #{}
              :post/pinned? false}
+      (= media-type :media/document)
+      (assoc :post/document-title (:raw/document-title raw-data))
       (= media-type :media/article)
       (assoc :post/article-title (:raw/article-title raw-data)
              :post/article-subtitle (:raw/article-subtitle raw-data)
@@ -780,7 +786,7 @@
       (.-hostname (js/URL. url))
       (catch :default _ nil))))
 
-(defn media-thumbnail [{:keys [post/media-type post/media-image-url]}]
+(defn media-thumbnail [{:keys [post/media-type post/media-image-url post/document-title]}]
   (case media-type
     :media/image
     (when media-image-url
@@ -798,10 +804,15 @@
                       :background "rgba(0,0,0,0.3)"}}
         [:span {:style {:color "white" :font-size "28px"}} "\u25B6"]]])
     :media/document
-    [:div {:style {:width "100%" :height "48px" :border-radius "6px"
+    [:div {:style {:width "100%" :padding "8px 12px" :border-radius "6px"
                    :background "#f0f0f0" :display "flex" :align-items "center"
-                   :justify-content "center" :margin-bottom "6px"}}
-     [:span {:style {:font-size "18px" :color "#666"}} "\uD83D\uDCC4 Document"]]
+                   :gap "8px" :margin-bottom "6px"}}
+     [:span {:style {:font-size "22px" :flex-shrink "0"}} "\uD83D\uDCC4"]
+     [:span {:style {:font-size "12px" :color "#444" :font-weight "600"
+                     :overflow "hidden" :text-overflow "ellipsis"
+                     :display "-webkit-box" :-webkit-line-clamp "2"
+                     :-webkit-box-orient "vertical"}}
+      (or document-title "Document")]]
     :media/carousel
     (if media-image-url
       [:div {:style {:position "relative" :width "100%" :max-height "160px"
