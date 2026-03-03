@@ -908,13 +908,14 @@
   (reset! !viewport-buffer {:seen [] :snapshots {}}))
 
 (defn buffer-visible-viewport-posts! []
-  (doseq [post-el (qa-doc :sel/post-container)]
-    (let [rect (.getBoundingClientRect post-el)]
-      (when (and (<= (.-top rect) (.-innerHeight js/window))
-                 (>= (.-bottom rect) 0))
-        (when-let [urn (extract-urn-from-element post-el)]
-          (when (activity-urn? urn)
-            (buffer-viewport-post! urn post-el)))))))
+  (when-not (re-find single-post-url-pattern (.-href js/window.location))
+    (doseq [post-el (qa-doc :sel/post-container)]
+      (let [rect (.getBoundingClientRect post-el)]
+        (when (and (<= (.-top rect) (.-innerHeight js/window))
+                   (>= (.-bottom rect) 0))
+          (when-let [urn (extract-urn-from-element post-el)]
+            (when (activity-urn? urn)
+              (buffer-viewport-post! urn post-el))))))))
 
 (defn get-feed-urns []
   (set (keep #(.getAttribute % "data-urn") (qa-doc :sel/post-container))))
