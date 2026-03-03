@@ -432,7 +432,7 @@
   [{:source :btn-aria :pattern #"(?i)react"    :engagement :engaged/liked}
    {:source :btn-aria :pattern #"(?i)comment"  :engagement :engaged/commented}
    {:source :text     :pattern #"(?i)repost"   :engagement :engaged/reposted}
-   {:source :text     :pattern #"(?i)^save$"   :engagement :engaged/saved}
+   {:source :text     :pattern #"(?i)\bsave\b"  :engagement :engaged/saved}
    {:source :text     :pattern #"(?i)more"     :engagement :engaged/expanded}])
 
 (defn interpret-click [click-context]
