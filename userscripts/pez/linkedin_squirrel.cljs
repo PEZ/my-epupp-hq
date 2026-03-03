@@ -462,6 +462,34 @@
 (defn detach-engagement-listener! []
   (detach-listener! js/document.body "click" :resource/engagement-handler {:capture? true}))
 
+(defn handle-comment-input! [e]
+  (try
+    (let [target (.-target e)]
+      (when (.closest target ".comments-comment-box, .comments-comment-texteditor")
+        (when-let [post-el (find-post-container target)]
+          (let [raw (scrape-post-element post-el)
+                urn (:raw/urn raw)]
+            (when (and (activity-urn? urn)
+                       (not (promoted-post? raw))
+                       (not (contains?
+                             (get-in @!state [:squirrel/posts urn :post/engagements])
+                             :engaged/commented)))
+              (let [now (.toISOString (js/Date.))
+                    snapshot (raw->post-snapshot raw now)]
+                (swap! !state hoard-post urn snapshot :engaged/commented now)
+                (schedule-save!)
+                (js/console.log "[epupp:squirrel] Engagement: commented (input)" urn)))))))
+    (catch :default err
+      (js/console.error "[epupp:squirrel] Comment input handler error:" err))))
+
+(defn attach-comment-input-listener! []
+  (attach-listener! js/document.body "input" :resource/comment-input-handler
+                    handle-comment-input! {:capture? true}))
+
+(defn detach-comment-input-listener! []
+  (detach-listener! js/document.body "input" :resource/comment-input-handler
+                    {:capture? true}))
+
 (defn- attach-iframe-engagement-listener! [iframe-body]
   (when-let [old (:resource/iframe-engagement-handler @!resources)]
     (.removeEventListener (.-target old) "click" (.-handler old) true))
@@ -969,6 +997,7 @@
 (defn teardown! []
   (disconnect-feed-observer!)
   (detach-engagement-listener!)
+  (detach-comment-input-listener!)
   (detach-iframe-engagement-listener!)
   (detach-escape-handler!)
   (detach-click-outside-handler!)
@@ -993,6 +1022,7 @@
   (load-state!)
   (create-feed-observer!)
   (attach-engagement-listener!)
+  (attach-comment-input-listener!)
   (attach-escape-handler!)
   (attach-click-outside-handler!)
   (attach-beforeunload-handler!)
