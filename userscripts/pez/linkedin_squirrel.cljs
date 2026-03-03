@@ -15,6 +15,7 @@
          :ui/panel-open?  false
          :ui/search-text  ""
          :ui/filter-engagement nil
+         :ui/filter-media nil
          :nav/seen-urns   #{}}))
 
 (defonce !resources (atom {}))
@@ -714,12 +715,14 @@
         (string/includes? (string/lower-case (or (:post/text-preview post) "")) lower)
         (string/includes? (string/lower-case (or (:post/author-headline post) "")) lower))))
 
-(defn filter-posts [posts {:keys [ui/search-text ui/filter-engagement]}]
+(defn filter-posts [posts {:keys [ui/search-text ui/filter-engagement ui/filter-media]}]
   (cond->> (vals posts)
     (and search-text (seq search-text))
     (filter #(matches-search? % search-text))
     filter-engagement
-    (filter #(contains? (:post/engagements %) filter-engagement))))
+    (filter #(contains? (:post/engagements %) filter-engagement))
+    filter-media
+    (filter #(= (:post/media-type %) filter-media))))
 
 (defn sort-posts [posts]
   (reverse (sort-by :post/last-engaged posts)))
@@ -854,7 +857,7 @@
        eng])]])
 
 (defn panel-view [state]
-  (let [{:keys [squirrel/posts ui/search-text ui/filter-engagement]} state
+  (let [{:keys [squirrel/posts ui/search-text ui/filter-engagement ui/filter-media]} state
         filtered (filter-posts posts state)
         sorted (sort-posts filtered)
         post-count (count posts)]
@@ -892,6 +895,17 @@
                   :on {:click (fn [_]
                                 (swap! !state assoc :ui/filter-engagement
                                        (when (not= filter-engagement k) k)))}}
+         label])]
+     [:div {:style {:padding "4px 16px" :display "flex" :gap "4px" :flex-wrap "wrap"}}
+      (for [[k label] media-labels]
+        [:button {:replicant/key (name k)
+                  :style {:padding "3px 8px" :border-radius "12px" :font-size "11px"
+                          :cursor "pointer" :border "1px solid #ccc"
+                          :background (if (= filter-media k) "#6b21a8" "white")
+                          :color (if (= filter-media k) "white" "#333")}
+                  :on {:click (fn [_]
+                                (swap! !state assoc :ui/filter-media
+                                       (when (not= filter-media k) k)))}}
          label])]
      ;; Post count
      [:div {:style {:padding "4px 16px" :font-size "11px" :color "#666"}}
