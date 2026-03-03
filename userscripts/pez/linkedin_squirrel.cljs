@@ -502,29 +502,24 @@
       (update :post/engagements into (:post/engagements b))
       (assoc :post/pinned? (or (:post/pinned? a) (:post/pinned? b)))))
 
-(defn merge-post-states
-  "Merge two post state maps. Posts in both get merged; posts in only one are kept."
-  [state-a state-b]
-  (let [posts-a (:squirrel/posts state-a)
-        posts-b (:squirrel/posts state-b)
-        all-urns (into (set (keys posts-a)) (keys posts-b))
-        merged-posts (into {}
-                       (map (fn [urn]
-                              (let [a (get posts-a urn)
-                                    b (get posts-b urn)]
-                                [urn (cond
-                                       (and a b) (merge-post a b)
-                                       a a
-                                       :else b)])))
-                       all-urns)
-        base-index (if (>= (count (:squirrel/index state-a))
-                           (count (:squirrel/index state-b)))
-                     (:squirrel/index state-a)
-                     (:squirrel/index state-b))
-        base-set (set base-index)
-        extra (remove base-set all-urns)]
-    {:squirrel/posts merged-posts
-     :squirrel/index (into (vec base-index) extra)}))
+(defn upsert-posts
+  "Upsert in-memory posts into storage state. Additive only: never removes
+   posts from storage, only adds new ones or merges existing ones."
+  [storage-state in-memory-state]
+  (let [storage-posts (:squirrel/posts storage-state)
+        in-mem-posts (:squirrel/posts in-memory-state)
+        updated-posts (reduce-kv
+                       (fn [acc urn post]
+                         (if-let [existing (get acc urn)]
+                           (assoc acc urn (merge-post existing post))
+                           (assoc acc urn post)))
+                       storage-posts
+                       in-mem-posts)
+        storage-index (or (:squirrel/index storage-state) [])
+        index-set (set storage-index)
+        new-urns (remove index-set (keys in-mem-posts))]
+    {:squirrel/posts updated-posts
+     :squirrel/index (into storage-index new-urns)}))
 
 (defn read-persisted-state []
   (when-let [raw (storage-get storage-key)]
@@ -534,19 +529,34 @@
          :squirrel/index (or index [])})
       (catch :default _ nil))))
 
-(defn save-state! []
+(defn write-state!
+  "Low-level: write the given posts state to storage and sync back to atom."
+  [{:keys [squirrel/posts squirrel/index] :as state}]
+  (storage-set! storage-key (pr-str {:posts posts :index index}))
+  (swap! !state assoc :squirrel/posts posts :squirrel/index index)
+  state)
+
+(defn storage-transact!
+  "Read storage, apply f to it, write back, sync atom. For immediate
+   operations (delete, pin) that must not be lost to debouncing."
+  [f & args]
+  (let [persisted (or (read-persisted-state)
+                      {:squirrel/posts {} :squirrel/index []})
+        updated (apply f persisted args)]
+    (write-state! updated)))
+
+(defn save-state!
+  "Debounced save: upserts in-memory posts into storage. Additive only —
+   never removes posts from storage. Deletions go through storage-transact!."
+  []
   (swap! !state prune-posts)
   (let [in-memory {:squirrel/posts (:squirrel/posts @!state)
                    :squirrel/index (:squirrel/index @!state)}
-        persisted (read-persisted-state)
-        merged (if persisted
-                 (merge-post-states in-memory persisted)
-                 in-memory)
-        {:keys [squirrel/posts squirrel/index]} merged
-        data {:posts posts :index index}]
-    (swap! !state assoc :squirrel/posts posts :squirrel/index index)
-    (storage-set! storage-key (pr-str data))
-    (js/console.log "[epupp:squirrel] Saved" (count posts) "posts (merged)")))
+        persisted (or (read-persisted-state)
+                      {:squirrel/posts {} :squirrel/index []})
+        merged (upsert-posts persisted in-memory)]
+    (write-state! merged)
+    (js/console.log "[epupp:squirrel] Saved" (count (:squirrel/posts merged)) "posts")))
 
 (defn load-state! []
   (let [from-new (storage-get storage-key)
@@ -812,15 +822,14 @@
                              (let [now (.toISOString (js/Date.))
                                    raw (scrape-post-element post-el)
                                    snapshot (raw->post-snapshot raw now)]
-                               (swap! !state (fn [s]
-                                               (let [s (if (get-in s [:squirrel/posts urn])
-                                                         s
-                                                         (hoard-post s urn snapshot :engaged/pinned now))]
-                                                 (toggle-pin s urn))))
+                               (storage-transact! (fn [s]
+                                                    (let [s (if (get-in s [:squirrel/posts urn])
+                                                              s
+                                                              (hoard-post s urn snapshot :engaged/pinned now))]
+                                                      (toggle-pin s urn))))
                                (let [now-pinned? (get-in @!state [:squirrel/posts urn :post/pinned?])]
                                  (set! (.-textContent btn) (if now-pinned? "\u2605" "\u2606"))
-                                 (set! (.. btn -style -color) (if now-pinned? "#f59e0b" "#666")))
-                               (schedule-save!))))
+                                 (set! (.. btn -style -color) (if now-pinned? "#f59e0b" "#666"))))))
         (.insertBefore target-container btn overflow-btn)))))
 
 (defn detect-current-user-slug! []
@@ -991,12 +1000,11 @@
 (defn render-vanished-cards! [mount snapshots]
   (let [on-pin (fn [urn snapshot]
                  (let [now (.toISOString (js/Date.))]
-                   (swap! !state (fn [s]
-                                  (let [s (if (get-in s [:squirrel/posts urn])
-                                            s
-                                            (hoard-post s urn snapshot :engaged/pinned now))]
-                                    (toggle-pin s urn))))
-                   (schedule-save!)
+                   (storage-transact! (fn [s]
+                                       (let [s (if (get-in s [:squirrel/posts urn])
+                                                 s
+                                                 (hoard-post s urn snapshot :engaged/pinned now))]
+                                         (toggle-pin s urn))))
                    (render-vanished-cards! mount snapshots)))
         on-dismiss (fn [_]
                      (.removeChild (.-parentElement mount) mount)
@@ -1208,8 +1216,7 @@
                 :title (if pinned? "Unpin" "Pin")
                 :on {:click (fn [e]
                               (.stopPropagation e)
-                              (swap! !state toggle-pin urn)
-                              (schedule-save!))}}
+                              (storage-transact! toggle-pin urn))}}
        (if pinned? "\u2605" "\u2606")]
       [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
        (format-relative-time last-engaged (js/Date.now))]
@@ -1219,8 +1226,7 @@
                 :title "Remove from hoard"
                 :on {:click (fn [e]
                               (.stopPropagation e)
-                              (swap! !state remove-post urn)
-                              (schedule-save!))}}
+                              (storage-transact! remove-post urn))}}
        "\u00D7"]])
    [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
     (when media-type
@@ -1390,19 +1396,14 @@
   (when (= (.-key e) storage-key)
     (when-let [new-val (.-newValue e)]
       (try
-        (let [{:keys [posts index]} (clojure.edn/read-string new-val)
-              external {:squirrel/posts (or posts {})
-                        :squirrel/index (or index [])}
-              in-memory {:squirrel/posts (:squirrel/posts @!state)
-                         :squirrel/index (:squirrel/index @!state)}
-              merged (merge-post-states in-memory external)]
+        (let [{:keys [posts index]} (clojure.edn/read-string new-val)]
           (swap! !state assoc
-                 :squirrel/posts (:squirrel/posts merged)
-                 :squirrel/index (:squirrel/index merged))
-          (js/console.log "[epupp:squirrel] Merged external state change,"
-                          (count (:squirrel/posts merged)) "posts"))
+                 :squirrel/posts (or posts {})
+                 :squirrel/index (or index []))
+          (js/console.log "[epupp:squirrel] Storage updated from other tab,"
+                          (count posts) "posts"))
         (catch :default err
-          (js/console.error "[epupp:squirrel] Storage merge error:" err))))))
+          (js/console.error "[epupp:squirrel] Storage change error:" err))))))
 
 (defn attach-storage-listener! []
   (attach-listener! js/window "storage" :resource/storage-handler
