@@ -741,33 +741,45 @@
               post)))
         (qa-doc :sel/post-container)))
 
+(defn vanished-button-view [{:keys [n on-click]}]
+  [:div {:id "epupp-squirrel-vanished-btn"
+         :style {:padding "12px 16px"
+                 :margin "8px 0"
+                 :background "#fffde7"
+                 :border "2px solid #f59e0b"
+                 :border-radius "8px"
+                 :cursor "pointer"
+                 :display "flex"
+                 :justify-content "center"}
+         :on {:click on-click}}
+   (epupp-header :size 24 :title "Squirrel" :tagline
+                 (str "Show " n " vanished posts"))])
+
 (defn inject-vanished-button! []
   (when-not (js/document.getElementById "epupp-squirrel-vanished-btn")
     (let [{:keys [seen clones]} @!viewport-buffer
           n (count seen)]
       (when (pos? n)
         (when-let [anchor (topmost-viewport-post-el)]
-          (let [btn (js/document.createElement "div")]
-            (set! (.-id btn) "epupp-squirrel-vanished-btn")
-            (set! (.. btn -style -cssText)
-                  "padding: 12px 16px; margin: 8px 0; background: #fffde7; border: 2px solid #f59e0b; border-radius: 8px; text-align: center; cursor: pointer; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 600; color: #92400e;")
-            (set! (.-textContent btn) (str "\uD83D\uDC3F\uFE0F Show " n " vanished posts"))
-            (.addEventListener btn "click"
-              (fn [_]
-                (let [parent (.-parentElement btn)
-                      ref (.-nextSibling btn)]
-                  (doseq [urn (reverse seen)]
-                    (when-let [clone (get clones urn)]
-                      (let [wrapper (js/document.createElement "div")]
-                        (set! (.. wrapper -style -cssText)
-                              "border-left: 3px solid #f59e0b;")
-                        (.setAttribute wrapper "data-epupp-rescued" "true")
-                        (.appendChild wrapper clone)
-                        (.insertBefore parent wrapper ref))))
-                  (.removeChild parent btn)
-                  (reset-viewport-buffer!)
-                  (js/console.log "[epupp:squirrel] Restored" n "vanished posts"))))
-            (.insertBefore (.-parentElement anchor) btn anchor)
+          (let [mount (js/document.createElement "div")]
+            (r/render mount
+              (vanished-button-view
+               {:n n
+                :on-click (fn [_]
+                            (let [parent (.-parentElement mount)
+                                  ref (.-nextSibling mount)]
+                              (doseq [urn (reverse seen)]
+                                (when-let [clone (get clones urn)]
+                                  (let [wrapper (js/document.createElement "div")]
+                                    (set! (.. wrapper -style -cssText)
+                                          "border-left: 3px solid #f59e0b;")
+                                    (.setAttribute wrapper "data-epupp-rescued" "true")
+                                    (.appendChild wrapper clone)
+                                    (.insertBefore parent wrapper ref))))
+                              (.removeChild parent mount)
+                              (reset-viewport-buffer!)
+                              (js/console.log "[epupp:squirrel] Restored" n "vanished posts")))}))
+            (.insertBefore (.-parentElement anchor) mount anchor)
             (js/console.log "[epupp:squirrel] Feed refresh detected, injected vanished-posts button")))))))
 
 (defn create-viewport-observer! []
