@@ -1224,7 +1224,7 @@
       [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
        (format-relative-time last-engaged (js/Date.now))]
       [:button {:style {:background "none" :border "none" :cursor "pointer"
-                        :color "#ccc" :font-size "20px" :padding "6px"
+                        :color "#4c4c4c" :font-size "20px" :padding "6px"
                         :line-height "1" :margin-left "2px"}
                 :title "Remove from hoard"
                 :on {:click (fn [e]
