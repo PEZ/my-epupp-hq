@@ -614,6 +614,23 @@
   (doseq [post-el (qa-doc :sel/post-container)]
     (scan-post! post-el)))
 
+(def single-post-url-pattern #"/feed/update/(urn:li:activity:\d+)")
+
+(defn hoard-visited-post!
+  "When on a single-post page, hoard that post with :engaged/visited."
+  []
+  (when-let [match (re-find single-post-url-pattern (.-href js/window.location))]
+    (let [urn (second match)]
+      (when-let [post-el (first (qa-doc :sel/post-container))]
+        (let [raw (scrape-post-element post-el)]
+          (when (and (activity-urn? (:raw/urn raw))
+                     (not (promoted-post? raw)))
+            (let [now (.toISOString (js/Date.))
+                  snapshot (raw->post-snapshot raw now)]
+              (swap! !state hoard-post urn snapshot :engaged/visited now)
+              (schedule-save!)
+              (js/console.log "[epupp:squirrel] Visited post:" urn))))))))
+
 (declare process-mutations!)
 
 (defn schedule-mutation-processing! []
@@ -685,7 +702,8 @@
    :engaged/saved "Saved"
    :engaged/expanded "Expanded"
    :engaged/pinned "Pinned"
-   :engaged/posted "Posted"})
+   :engaged/posted "Posted"
+   :engaged/visited "Visited"})
 
 (def media-labels
   {:media/text "Text"
@@ -981,7 +999,8 @@
              :nav/seen-urns #{}
              :nav/last-url current
              :ui/panel-open? false)
-      (poll-until-ready!))))
+      (poll-until-ready!)
+      (js/setTimeout hoard-visited-post! 2000))))
 
 (defn start-url-polling! []
   (when-let [old (:resource/url-poll-interval @!resources)]
@@ -1045,7 +1064,8 @@
   (ensure-nav-button!)
   (js/setTimeout (fn []
                    (detect-current-user-slug!)
-                   (scan-visible-posts!)) 1000)
+                   (scan-visible-posts!)
+                   (hoard-visited-post!)) 1000)
   (selector-health-check!)
   (js/console.log "[epupp:squirrel] Initialized")
   :initialized)
