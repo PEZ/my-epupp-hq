@@ -795,8 +795,8 @@
                    :border "1px solid #e8e8e8" :margin-bottom "6px"}}
      (when img-url
        [:img {:src img-url
-              :style {:width "48px" :height "48px" :border-radius "4px"
-                      :object-fit "cover" :flex-shrink "0"}}])
+              :style {:width "48px" :border-radius "4px"
+                      :flex-shrink "0"}}])
      [:div {:style {:flex "1" :min-width "0"}}
       (when article-title
         [:div {:style {:font-size "12px" :font-weight "600" :color "#333"
@@ -1002,7 +1002,8 @@
    [:div {:style {:display "flex" :align-items "flex-start" :gap "8px" :margin-bottom "6px"}}
     (if author-avatar-url
       [:img {:src author-avatar-url
-             :style {:width "32px" :height "32px" :border-radius "50%"}}]
+             :style {:width "32px" :height "32px" :border-radius "50%"
+                     :object-fit "cover"}}]
       [:div {:style {:width "32px" :height "32px" :border-radius "50%"
                      :background "#0a66c2" :color "white" :display "flex"
                      :align-items "center" :justify-content "center"
