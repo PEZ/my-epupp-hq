@@ -407,10 +407,29 @@
 (defn storage-remove! [k]
   (.call (:remove-item native-storage-fns) js/localStorage k))
 
+(defn find-existing-urn
+  "Find the URN of an already-hoarded post that matches the given snapshot
+   by content identity (author-profile-url + text-preview). Returns nil
+   if no match or if the snapshot's own URN already exists."
+  [posts urn snapshot]
+  (when-not (contains? posts urn)
+    (let [author (:post/author-profile-url snapshot)
+          text (:post/text-preview snapshot)]
+      (when (and author text)
+        (some (fn [[existing-urn post]]
+                (when (and (= author (:post/author-profile-url post))
+                           (= text (:post/text-preview post)))
+                  existing-urn))
+              posts)))))
+
 (defn hoard-post
-  "Add or update a post in state. Merges engagement and preserves pin."
+  "Add or update a post in state. Merges engagement and preserves pin.
+   Deduplicates by content identity: if a post with the same author+text
+   already exists under a different URN, merges into the existing entry."
   [state urn snapshot engagement-type now]
-  (let [existing (get-in state [:squirrel/posts urn])
+  (let [resolved-urn (or (find-existing-urn (:squirrel/posts state) urn snapshot)
+                         urn)
+        existing (get-in state [:squirrel/posts resolved-urn])
         merged (if existing
                  (-> existing
                      (update :post/engagements (fnil conj #{}) engagement-type)
@@ -419,12 +438,12 @@
                      (assoc :post/engagements #{engagement-type})
                      (assoc :post/last-engaged now)))]
     (-> state
-        (assoc-in [:squirrel/posts urn] merged)
+        (assoc-in [:squirrel/posts resolved-urn] merged)
         (update :squirrel/index
                 (fn [idx]
-                  (if (some #{urn} idx)
+                  (if (some #{resolved-urn} idx)
                     idx
-                    (conj (or idx []) urn)))))))
+                    (conj (or idx []) resolved-urn)))))))
 
 (defn toggle-pin [state urn]
   (update-in state [:squirrel/posts urn :post/pinned?] not))
@@ -438,9 +457,12 @@
   "Hoard a post authored by the current user.
    New post: hoarded with :engaged/posted, timestamps set to now.
    Already hoarded without :engaged/posted: adds engagement, doesn't update last-engaged.
-   Already has :engaged/posted: no-op."
+   Already has :engaged/posted: no-op.
+   Deduplicates by content identity like hoard-post."
   [state urn snapshot]
-  (let [existing (get-in state [:squirrel/posts urn])]
+  (let [resolved-urn (or (find-existing-urn (:squirrel/posts state) urn snapshot)
+                         urn)
+        existing (get-in state [:squirrel/posts resolved-urn])]
     (cond
       ;; Already has :engaged/posted - no-op
       (contains? (:post/engagements existing) :engaged/posted)
@@ -448,15 +470,15 @@
 
       ;; Hoarded but missing :engaged/posted - add engagement only
       existing
-      (update-in state [:squirrel/posts urn :post/engagements] conj :engaged/posted)
+      (update-in state [:squirrel/posts resolved-urn :post/engagements] conj :engaged/posted)
 
       ;; Not hoarded - create new entry
       :else
       (-> state
-          (assoc-in [:squirrel/posts urn]
+          (assoc-in [:squirrel/posts resolved-urn]
                     (-> snapshot
                         (assoc :post/engagements #{:engaged/posted})))
-          (update :squirrel/index conj urn)))))
+          (update :squirrel/index conj resolved-urn)))))
 
 (defn prune-posts
   "Remove oldest unpinned posts when over capacity."
