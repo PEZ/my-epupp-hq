@@ -734,14 +734,14 @@
     :media/image
     (when media-image-url
       [:img {:src media-image-url
-             :style {:width "100%" :max-height "160px" :border-radius "6px"
-                     :object-fit "cover" :margin-bottom "6px"}}])
+             :style {:width "100%" :border-radius "6px"
+                     :margin-bottom "6px"}}])
     :media/video
     (when media-image-url
-      [:div {:style {:position "relative" :width "100%" :max-height "160px"
-                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+      [:div {:style {:position "relative" :width "100%"
+                     :border-radius "6px" :margin-bottom "6px"}}
        [:img {:src media-image-url
-              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+              :style {:width "100%" :border-radius "6px"}}]
        [:div {:style {:position "absolute" :inset "0" :display "flex"
                       :align-items "center" :justify-content "center"
                       :background "rgba(0,0,0,0.3)"}}
@@ -758,10 +758,10 @@
       (or document-title "Document")]]
     :media/carousel
     (if media-image-url
-      [:div {:style {:position "relative" :width "100%" :max-height "160px"
-                     :overflow "hidden" :border-radius "6px" :margin-bottom "6px"}}
+      [:div {:style {:position "relative" :width "100%"
+                     :border-radius "6px" :margin-bottom "6px"}}
        [:img {:src media-image-url
-              :style {:width "100%" :max-height "160px" :object-fit "cover"}}]
+              :style {:width "100%" :border-radius "6px"}}]
        [:div {:style {:position "absolute" :bottom "4px" :right "4px"
                       :background "rgba(0,0,0,0.6)" :color "white"
                       :padding "2px 6px" :border-radius "4px" :font-size "10px"}}
@@ -773,8 +773,8 @@
     :media/celebration
     (if media-image-url
       [:img {:src media-image-url
-             :style {:width "100%" :max-height "160px" :border-radius "6px"
-                     :object-fit "cover" :margin-bottom "6px"}}]
+             :style {:width "100%" :border-radius "6px"
+                     :margin-bottom "6px"}}]
       [:div {:style {:width "100%" :height "48px" :border-radius "6px"
                      :background "#f0f0f0" :display "flex" :align-items "center"
                      :justify-content "center" :margin-bottom "6px"}}
