@@ -113,7 +113,10 @@
    :engaged/pinned "Pinned"
    :engaged/posted "Posted"
    :engaged/visited "Visited"
-   :engaged/viewed "Viewed"})
+   :engaged/viewed "Viewed"
+   :engaged/genesis "Genesis"})
+
+(def genesis-post-urn "urn:li:activity:7434911786253832192")
 
 (def media-labels
   {:media/text "Text"
@@ -545,6 +548,34 @@
                       {:squirrel/posts {} :squirrel/index []})
         updated (apply f persisted args)]
     (write-state! updated)))
+
+(defn ensure-genesis-post!
+  "Ensure the genesis post exists in the hoard with :engaged/genesis."
+  []
+  (storage-transact!
+   (fn [state]
+     (let [urn genesis-post-urn
+           existing (get-in state [:squirrel/posts urn])]
+       (if existing
+         (update-in state [:squirrel/posts urn :post/engagements] conj :engaged/genesis)
+         (let [now (.toISOString (js/Date.))]
+           (-> state
+               (assoc-in [:squirrel/posts urn]
+                         {:post/urn urn
+                          :post/author-name "Peter (PEZ) Strömberg"
+                          :post/author-headline "Clojurian Contractor, Hacking on Calva. I just want to code, dammit! Haha"
+                          :post/author-avatar-url "https://media.licdn.com/dms/image/v2/D4D03AQGtmEWdnxAxDQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1666595543864?e=1774483200&v=beta&t=nfQ9dNrugY9liczcfBdfgvCvF5PokRrg4kb8oqQnAsI"
+                          :post/author-profile-url "https://www.linkedin.com/in/cospaia?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAABSgXMBKDwFEllIvlSVXp-7fH1WATAfb0k"
+                          :post/text-preview "I made a browser userscript I call LinkedIn Squirrel, which hoards posts I engage with and gives me a UI for quickly finding them. The Squirrel also helps recover posts that vanish under my nose while I am reading them in the feed.You can use Squirrel too. You need Epupp, an extension for Chrome and Firefox, available at the extension stores. (I made Epupp too). And you need the Squirrel script:https://lnkd.in/d2swsZkf(Open/reload the script page with Epupp installed.)Please let me know if your \u2026"
+                          :post/media-type :media/video
+                          :post/media-image-url "https://media.licdn.com/dms/image/v2/D4D05AQHDh2A2GSu1_g/feedshare-thumbnail_720_1280/B4DZy4A2H.GUA8-/0/1772613758781?e=1773226800&v=beta&t=9Ai2DQI8EfqTPl9z-I4sqBEC2xeuP2b5SksXJbiFBkg"
+                          :post/reshare? false
+                          :post/pinned? false
+                          :post/engagements #{:engaged/genesis}
+                          :post/first-seen now
+                          :post/last-engaged now})
+               (update :squirrel/index
+                       (fn [idx] (conj (or idx []) urn))))))))))
 
 (defn save-state!
   "Debounced save: upserts in-memory posts into storage. Additive only —
@@ -1224,14 +1255,15 @@
        (if pinned? "\u2605" "\u2606")]
       [:span {:style {:font-size "11px" :color "#999" :line-height "1"}}
        (format-relative-time last-engaged (js/Date.now))]
-      [:button {:style {:background "none" :border "none" :cursor "pointer"
-                        :color "#4c4c4c" :font-size "20px" :padding "6px"
-                        :line-height "1" :margin-left "2px"}
-                :title "Remove from hoard"
-                :on {:click (fn [e]
-                              (.stopPropagation e)
-                              (storage-transact! remove-post urn))}}
-       "\u00D7"]])
+      (when-not (= urn genesis-post-urn)
+        [:button {:style {:background "none" :border "none" :cursor "pointer"
+                          :color "#4c4c4c" :font-size "20px" :padding "6px"
+                          :line-height "1" :margin-left "2px"}
+                  :title "Remove from hoard"
+                  :on {:click (fn [e]
+                                (.stopPropagation e)
+                                (storage-transact! remove-post urn))}}
+         "\u00D7"])])
    [:div {:style {:display "flex" :gap "4px" :flex-wrap "wrap"}}
     (when media-type
       [:span {:style {:background "#e3f2fd" :color "#1565c0" :padding "2px 6px"
@@ -1241,7 +1273,10 @@
       [:span {:replicant/key eng
               :style {:background "#f3e5f5" :color "#7b1fa2" :padding "2px 6px"
                       :border-radius "4px" :font-size "10px"}}
-       eng])]])
+       eng])]
+   (when (= urn genesis-post-urn)
+     [:div {:style {:font-size "11px" :color "#888" :margin-top "4px"}}
+      "Please visit and like/comment/share \u2764\uFE0F"])])
 
 (defn panel-view [state]
   (let [{:keys [squirrel/posts ui/search-text ui/filter-engagement ui/filter-media]} state
@@ -1444,6 +1479,7 @@
                  (ensure-nav-button!))))
   (ensure-panel-container!)
   (load-state!)
+  (ensure-genesis-post!)
   (create-feed-observer!)
   (create-viewport-observer!)
   (attach-engagement-listener!)
