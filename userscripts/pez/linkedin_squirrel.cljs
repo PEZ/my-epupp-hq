@@ -309,7 +309,12 @@
    :raw/image-url (some-> (q post-el :sel/image-container) (.querySelector "img") (.getAttribute "src"))
    :raw/article-image-url (or (some-> (q post-el :sel/article-card) (.querySelector "img") (.getAttribute "src"))
                               (some-> (q post-el :sel/article-image-link) (.querySelector "img") (.getAttribute "src")))
-   :raw/has-reshare? (some? (.querySelector post-el ".update-components-mini-update-v2"))}))
+   :raw/has-reshare? (some? (or (.querySelector post-el ".update-components-mini-update-v2")
+                                (.querySelector post-el ".feed-shared-update-v2__update-content-wrapper")))
+   :raw/reshare-post (when-let [inner (and (not (.closest post-el ".feed-shared-update-v2__update-content-wrapper"))
+                                           (or (.querySelector post-el ".feed-shared-update-v2__update-content-wrapper")
+                                               (.querySelector post-el ".update-components-mini-update-v2")))]
+                       (scrape-post-element inner))}))
 
 ;; Pure Transforms (testable without DOM)
 
@@ -357,7 +362,9 @@
       (assoc :post/article-title (:raw/article-title raw-data)
              :post/article-subtitle (:raw/article-subtitle raw-data)
              :post/article-url (:raw/article-url raw-data)
-             :post/article-image-url (:raw/article-image-url raw-data)))))
+             :post/article-image-url (:raw/article-image-url raw-data))
+      (:raw/reshare-post raw-data)
+      (assoc :post/reshared-post (raw->post-snapshot (:raw/reshare-post raw-data) now)))))
 
 (defn promoted-post? [{:keys [raw/urn raw/timestamp-text]}]
   (or (not (activity-urn? urn))
@@ -1022,9 +1029,36 @@
                     :display "-webkit-box" :-webkit-line-clamp "2"
                     :-webkit-box-orient "vertical" :overflow "hidden"}}
       text-preview])
-   (media-thumbnail post)
-   (when (= media-type :media/article)
-     (article-mini-card post))))
+   (if-let [{reshare-author :post/author-name
+             reshare-avatar :post/author-avatar-url
+             reshare-headline :post/author-headline
+             reshare-text :post/text-preview
+             reshare-media-type :post/media-type
+             :as reshared-post} (:post/reshared-post post)]
+     [:div {:style {:border "1px solid #e0e0e0" :border-radius "6px"
+                    :padding "8px" :margin-top "4px" :background "#f8f9fa"}}
+      [:div {:style {:display "flex" :align-items "center" :gap "6px" :margin-bottom "4px"}}
+       (when reshare-avatar
+         [:img {:src reshare-avatar
+                :style {:width "20px" :height "20px" :border-radius "50%"
+                        :object-fit "cover"}}])
+       [:div {:style {:flex "1" :min-width "0"}}
+        [:span {:style {:font-weight "600" :font-size "11px"}} reshare-author]
+        (when reshare-headline
+          [:span {:style {:font-size "10px" :color "#666" :margin-left "4px"}}
+           reshare-headline])]]
+      (when reshare-text
+        [:div {:style {:font-size "11px" :color "#444" :margin-bottom "4px"
+                       :display "-webkit-box" :-webkit-line-clamp "3"
+                       :-webkit-box-orient "vertical" :overflow "hidden"}}
+         reshare-text])
+      (media-thumbnail reshared-post)
+      (when (= reshare-media-type :media/article)
+        (article-mini-card reshared-post))]
+     (list
+       (media-thumbnail post)
+       (when (= media-type :media/article)
+         (article-mini-card post))))))
 
 (defn vanished-post-card [{:post/keys [urn media-type] :as post}
                           {:keys [on-pin]}]
