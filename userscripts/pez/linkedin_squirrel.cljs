@@ -742,10 +742,10 @@
                      :border-radius "6px" :margin-bottom "6px"}}
        [:img {:src media-image-url
               :style {:width "100%" :border-radius "6px"}}]
-       [:div {:style {:position "absolute" :inset "0" :display "flex"
-                      :align-items "center" :justify-content "center"
-                      :background "rgba(0,0,0,0.3)"}}
-        [:span {:style {:color "white" :font-size "28px"}} "\u25B6"]]])
+       [:div {:style {:position "absolute" :bottom "12px" :right "6px"
+                      :background "rgba(0,0,0,0.6)" :color "white"
+                      :padding "2px 6px" :border-radius "4px" :font-size "10px"}}
+        "\u25B6 Video"]])
     :media/document
     [:div {:style {:width "100%" :padding "8px 12px" :border-radius "6px"
                    :background "#f0f0f0" :display "flex" :align-items "center"
