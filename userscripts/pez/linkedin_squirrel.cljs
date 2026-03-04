@@ -918,6 +918,9 @@
 
 (def single-post-url-pattern #"/feed/update/(urn:li:activity:\d+)")
 
+(defn on-feed-page? []
+  (not (re-find single-post-url-pattern (.-href js/window.location))))
+
 (defn hoard-visited-post!
   "When on a single-post page, hoard that post with :engaged/visited."
   []
@@ -961,7 +964,7 @@
   (reset! !viewport-buffer {:seen [] :snapshots {}}))
 
 (defn buffer-visible-viewport-posts! []
-  (when-not (re-find single-post-url-pattern (.-href js/window.location))
+  (when (on-feed-page?)
     (doseq [post-el (qa-doc :sel/post-container)]
       (let [rect (.getBoundingClientRect post-el)]
         (when (and (<= (.-top rect) (.-innerHeight js/window))
@@ -1135,12 +1138,13 @@
     (.disconnect old))
   (let [observer (js/IntersectionObserver.
                   (fn [entries]
-                    (doseq [entry entries]
-                      (when (.-isIntersecting entry)
-                        (let [post-el (.-target entry)
-                              urn (extract-urn-from-element post-el)]
-                          (when (activity-urn? urn)
-                            (buffer-viewport-post! urn post-el))))))
+                    (when (on-feed-page?)
+                      (doseq [entry entries]
+                        (when (.-isIntersecting entry)
+                          (let [post-el (.-target entry)
+                                urn (extract-urn-from-element post-el)]
+                            (when (activity-urn? urn)
+                              (buffer-viewport-post! urn post-el)))))))
                   #js {:threshold 0.3})]
     (swap! !resources assoc :resource/viewport-observer observer)
     (js/console.log "[epupp:squirrel] Viewport observer started")
@@ -1187,11 +1191,12 @@
 (defn process-mutations! []
   (try
     (ensure-iframe-observers!)
-    (scan-visible-posts!)
-    (observe-feed-posts!)
-    (buffer-visible-viewport-posts!)
-    (when (detect-feed-refresh)
-      (inject-vanished-button!))
+    (when (on-feed-page?)
+      (scan-visible-posts!)
+      (observe-feed-posts!)
+      (buffer-visible-viewport-posts!)
+      (when (detect-feed-refresh)
+        (inject-vanished-button!)))
     (ensure-nav-button!)
     (catch :default err
       (js/console.error "[epupp:squirrel] Mutation processing error:" err))))
