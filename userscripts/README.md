@@ -65,4 +65,4 @@ Path arguments are relative to `userscripts/`. Any argument not ending in `.cljs
 
 ### Ports
 
-All commands default to port `1339`. Use `--port` to target a relay running on a different port, matching your per-domain port configuration in Epupp.
+All commands default to port `3339`. Use `--port` to target a relay running on a different port, matching your per-domain port configuration in Epupp.

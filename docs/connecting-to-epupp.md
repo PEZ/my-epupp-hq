@@ -19,7 +19,7 @@ To create a predictable and Epupp-friendly environment for these instructions, w
 This project has [VS Code](https://code.visualstudio.com/) and [Calva](https://calva.io) configuration for starting and connecting multiple browser-nrepl relays to some common sites.
 
 0. Open your copy of **my-epupp-hq** in VS Code
-0. Run the default Build Task: <kbd>cmd/ctrl</kbd>+<kbd>b</kbd>, this starts the relays, one of them is for the default Epupp port 1339.
+0. Run the default Build Task: <kbd>cmd/ctrl</kbd>+<kbd>b</kbd>, this starts the relays, one of them is for the default Epupp port 3339.
 0. Connect the browser tab to browser-nrepl: Click **Connect** in the Epupp extension's popup UI.
 1. In VS Code, install the Calva extension
 1. Click the REPL button that appears in the VS Code status bar and select **Connect to a running REPL in your project**
@@ -31,7 +31,7 @@ That's it. You should see a green session indicator with `epupp-default` in the 
 1. In the `userscripts/hq/hello_world.cljs` place the cursor in/near the code you want to evaluate and press <kbd>alt</kbd>+<kbd>enter</kbd>
 1. Check in the browser what happened
 
-The configuration leverages the fact that Epupp can be made to use different default ports per domain. If you edit the ports in the Epupp panel before connecting, Epupp will remember that port for the current domain. The configuration lives in two files:
+The configuration leverages the fact that Epupp can be made to use different ports per domain. If you edit the REPL Connect ports to values that differ from the defaults (set in Settings), Epupp remembers those ports as an override for the current domain. The configuration lives in two files:
 * [.vscode/tasks.json](.vscode/tasks.json). The browser-nrepl tasks for: GitHub, GitLab, YouTube, Ebay, and a default (all other sites).
 * [.vscode/settings.json](.vscode/settings.json). The Calva REPL Connect sequences for these tasks.
 
