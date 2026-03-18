@@ -39,6 +39,6 @@
     (println "Done.")))
 
 (comment
-  (browser-nrepl {:nrepl-port 1339 :websocket-port 1340})
+  (browser-nrepl {:nrepl-port 3339 :websocket-port 3340})
   (docs-sync)
   :rcf)

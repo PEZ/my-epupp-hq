@@ -62,22 +62,36 @@ With the live REPL connection, you will discover use cases you may not ever have
 
 ### Install
 
-1. Install Epupp from the Chrome and Firefox extension/addon stores.
-    * Chrome Web Store: [Epupp: Live Tamper Your Web](https://chromewebstore.google.com/detail/bfcbpnmgefiblppimmoncoflmcejdbei)
-    * Firefox Browser Addons: https://addons.mozilla.org/firefox/addon/epupp/ (Please note that I haven't yet figured out all Firefox nuances, so some things may not work. Please file issues for things you note not working.)
-    * <details>
-      <summary>Safari</summary>
+#### Chrome
 
-      I'm still pondering wether I should submit to Safari App Store. Apple doesn't exactly love developers... But you can still use Epupp with Safari:
+1. Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/bfcbpnmgefiblppimmoncoflmcejdbei).
+2. Pin Epupp to the toolbar so it is always visible.
+3. Navigate away from the extension store - these pages can't be scripted.
 
-      Grab the extension zip file(s) from the Epupp repository, latest [release](https://github.com/PEZ/epupp/releases). In the case of Safari, download `epupp-safari.zip`. Then in Safari:
-      1. Open **Settings** -> **Developer**
-      2. Click **Add Temporary Extension...**
+I also recommend allowing Epupp in Private Browsing for maximum utility. The extension does not collect any data whatsoever.
 
-      Please note that I haven't yet figured out all Safari nuances, so some things may not work. Please file issues for things you note not working.
-      </details>
-2. Pin Epupp to always be visible in the browser location bar. I also recommend to allow Epupp in Private Browsing for maximum utility. The Extension does not collect any data whatsoever.
-3. Navigate away from the extension store, these pages can't be scripted.
+#### Firefox
+
+1. Install from [Firefox Browser Addons](https://addons.mozilla.org/firefox/addon/epupp/).
+2. Pin the Epupp icon to the toolbar - this is important for seeing permission badges.
+3. Navigate away from the addon store.
+
+Firefox treats host permissions as optional, so Epupp starts without permission to auto-run scripts on pages. When you visit a page that matches an auto-run script, Epupp shows a "!" badge on the extension icon. Click the icon and grant permission from the banner that appears. After granting, scripts auto-run as expected.
+
+You can also grant broad permission via **about:addons** -> **Epupp** -> **Permissions** -> toggle "Access your data for all websites".
+
+> [!NOTE]
+> Epupp has some quirks in Firefox, so not fully at par with how it works in Chrome. Please search and/or file issues for things you note not working.
+
+#### Safari
+
+I'm still pondering wether I should submit to Safari App Store. Apple doesn't exactly love developers... But you can still use Epupp with Safari:
+
+Grab the extension zip file(s) from the Epupp repository, latest [release](https://github.com/PEZ/epupp/releases). In the case of Safari, download `epupp-safari.zip`. Then in Safari:
+1. Open **Settings** -> **Developer**
+2. Click **Add Temporary Extension...**
+
+Please note that I haven't yet figured out all Safari nuances, so some things may not work. Please file issues for things you note not working.
 
 ### Userscript: Hello World
 
@@ -178,9 +192,14 @@ Built-in scripts are readable but not editable in place. Inspect one, copy it, r
 
 #### Settings
 
-**Auto-reconnect** is per tab: if a tab was connected before reload/navigation, Epupp re-establishes the connection. Tabs that were never connected stay that way.
+**Default ports** (nREPL and WebSocket) are the ports shown in REPL Connect for sites that have not been given specific ports. If you edit the ports in REPL Connect to values that differ from the defaults, those ports become a per-site override and stick even when defaults change.
 
-**Auto-connect REPL** makes Epupp try to connect right away on all pages you open.
+**Reconnect connected tabs on navigation** re-establishes the REPL connection when a connected tab navigates to a new page. REPL state is lost but the connection is restored. This setting is overridden when Auto-connect is active.
+
+**Auto-connect** controls whether Epupp connects a REPL automatically:
+- **Never** (default): no automatic connections.
+- **On page load**: connect to every page you load.
+- **On page load + tab activation**: connect to every page and follow your active tab.
 
 **Allow REPL FS Sync for this tab** turns on `epupp.fs` for that tab. Enabling sync gives access to code on that tab to install userscripts. Only enable this on a page you trust. See [REPL FS Sync](docs/repl-fs-sync.md) for the API.
 
@@ -407,6 +426,17 @@ After navigation, wait for the new page to load and REPL to reconnect. All prior
     (js/document.execCommand "copy")
     (.removeChild js/document.body el)))
 ```
+
+## Security
+
+* Userscripts run with full page access, including all the dangerous things. The gate is the user, scrutinizing userscripts and userscript authors.
+* Auto-run requires browser permission:
+  * Chrome grants it automatically at install.
+  * Firefox requires an explicit user grant. Epupp has UI for this.
+  * Safari grants it per-website with some Safari-provided ways to control it.
+* To expose its REPL, Epupp connects to a WebSocket port on localhost. The user is responsible for what program is listening on that port.
+* On a whitelist of code-hosting domains (GitHub, GitHub Gists, GitLab, Codeberg, localhost, and 127.0.0.1), any page code can install and modify userscripts. Page code can not, however, list or read userscripts from Epupp, even on these domains.
+* When REPL FS Sync is enabled, any code can list, read, write, and delete userscripts. This access is disabled by default. It needs to be enabled every time a REPL connection has been established, and can only be enabled to one tab at a time. The user is responsible for ensuring that no extension, or page code, including userscripts, exploits this access.
 
 ## Troubleshooting
 

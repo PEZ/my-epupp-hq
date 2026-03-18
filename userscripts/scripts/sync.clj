@@ -173,7 +173,7 @@
 ;; --- Commands ---
 
 (defn ls [{:keys [args opts]}]
-  (let [port (or (:port opts) 1339)]
+  (let [port (or (:port opts) 3339)]
     (ensure-connected! port)
     (let [{:keys [ok error]} (remote-ls {:port port})
           all-names (->> ok (map :fs/name) (remove epupp-script?))
@@ -185,7 +185,7 @@
         (println (str "  " n))))))
 
 (defn download [{:keys [args opts]}]
-  (let [port (or (:port opts) 1339)
+  (let [port (or (:port opts) 3339)
         force? (:force opts)
         dry-run? (:dry-run opts)]
     (ensure-connected! port)
@@ -226,7 +226,7 @@
                 (println (str "  ✓ " local-path)))))))))
 
 (defn upload [{:keys [args opts]}]
-  (let [port (or (:port opts) 1339)
+  (let [port (or (:port opts) 3339)
         force? (:force opts)
         dry-run? (:dry-run opts)]
     (ensure-connected! port)
@@ -282,7 +282,7 @@
         (fs/delete-tree tmp-dir)))))
 
 (defn diff-cmd [{:keys [args opts]}]
-  (let [port (or (:port opts) 1339)]
+  (let [port (or (:port opts) 3339)]
     (ensure-connected! port)
     (let [has-dirs? (some dir-arg? args)
           all-remote (when (or (empty? args) has-dirs?)

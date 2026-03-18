@@ -73,7 +73,7 @@ This workspace is configured with multiple relay sessions for different domains:
 
 | Session | Port | Domain |
 |---------|------|--------|
-| `epupp-default` | 1339 | General (any site) |
+| `epupp-default` | 3339 | General (any site) |
 | `epupp-github` | 11331 | GitHub |
 | `epupp-gitlab` | 11333 | GitLab |
 | `epupp-youtube` | 11335 | YouTube |
