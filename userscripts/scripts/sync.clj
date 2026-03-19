@@ -97,9 +97,15 @@
     (catch Exception _ nil)))
 
 (defn- normalize-script-name [n]
-  (let [normalized (-> n str/lower-case (str/replace #"[\s-]" "_"))]
-    (cond-> normalized
-      (not (str/ends-with? normalized ".cljs")) (str ".cljs"))))
+  (let [base (if (str/ends-with? n ".cljs")
+               (subs n 0 (- (count n) 5))
+               n)]
+    (-> base
+        str/lower-case
+        (str/replace #"[.]+" "/")
+        (str/replace #"[\s-]+" "_")
+        (str/replace #"[^a-z0-9_/]" "")
+        (str ".cljs"))))
 
 (defn- collect-local-scripts []
   (->> (fs/glob "." "**/*.cljs")
