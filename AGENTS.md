@@ -30,7 +30,7 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 - Most of `clojure.core` is available
 - Keywords are true Clojure keywords (unlike Squint where they're strings)
 - State persists across REPL evaluations within a page (resets on reload)
-- No script modularity: Epupp userscripts are currently self-contained. You cannot split code across multiple scripts or create shared library modules of your own.
+- **Library namespaces**: Any userscript can serve as a shared library. Reference it via `epupp://script-name.cljs` in `:epupp/inject`. Dependencies resolve transitively. Built-in shared library `epupp://epupp/ui.cljs` provides namespace `epupp.ui` for userscripts. See `docs/epupp-README.md` for examples.
 
 ## Clojure Principles
 
@@ -54,10 +54,12 @@ Quick manifest example:
 {:epupp/script-name "my_script.cljs"
  :epupp/auto-run-match "https://example.com/*"
  :epupp/description "What it does"
- :epupp/inject ["scittle://replicant.js"]}
+ :epupp/inject ["scittle://replicant.js" "epupp://utils/dom.cljs"]}
 
 (ns my-script
-  (:require [replicant.dom :as r]))
+  (:require [replicant.dom :as r]
+            [utils.dom :as dom]
+            [epupp.ui :as ui]))
 
 ;; code here
 ```
@@ -132,6 +134,10 @@ When REPL is connected, read operations are always available. Write operations a
 
 ;; Then use them
 (require '[replicant.dom :as r])
+
+;; Also works with user library scripts
+(epupp.repl/manifest! {:epupp/inject ["epupp://utils/dom.cljs"]})
+(require '[utils.dom :as dom])
 ```
 
 **Constraints:**
@@ -260,7 +266,7 @@ When REPL is connected, read operations are always available. Write operations a
 
 ### Epupp Branded Headers, Banners, Buttons
 
-There is some hiccup for presenting the Epupp icon with optional title and sub-title in [snippets/epupp_branding.cljs](snippets/epupp_branding.cljs).
+The built-in `epupp.ui` library provides hiccup components for the Epupp icon, branded headers, and banners. Inject it via `"epupp://epupp/ui.cljs"` and require `[epupp.ui :as ui]`. See `docs/epupp-README.md` for details.
 
 ## Connection and Setup
 
