@@ -30,7 +30,7 @@ Epupp runs **Scittle** (SCI in the browser) - not standard ClojureScript, not No
 - Most of `clojure.core` is available
 - Keywords are true Clojure keywords (unlike Squint where they're strings)
 - State persists across REPL evaluations within a page (resets on reload)
-- **Library namespaces**: Any userscript can serve as a shared library. Reference it via `epupp://script-name.cljs` in `:epupp/inject`. Dependencies resolve transitively. Built-in shared library `epupp://epupp/ui.cljs` provides namespace `epupp.ui` for userscripts. See `docs/epupp-README.md` for examples.
+- **Library namespaces**: Any userscript can serve as a shared library. Reference it via `epupp://script-name.cljs` in `:epupp/inject`. Dependencies resolve transitively. Built-in shared libraries: `epupp://epupp/ui.cljs` (namespace `epupp.ui`, branding components) and `epupp://epupp/tools.cljs` (namespace `epupp.tools`, element/viewport screenshot capture). See `docs/epupp-README.md` for examples.
 
 ## Clojure Principles
 
@@ -267,6 +267,8 @@ When REPL is connected, read operations are always available. Write operations a
 ### Epupp Branded Headers, Banners, Buttons
 
 The built-in `epupp.ui` library provides hiccup components for the Epupp icon, branded headers, and banners. Inject it via `"epupp://epupp/ui.cljs"` and require `[epupp.ui :as ui]`. See `docs/epupp-README.md` for details.
+
+The built-in `epupp.tools` library provides element and viewport screenshot capture. Inject it via `"epupp://epupp/tools.cljs"` and require `[epupp.tools :as tools]`. Functions: `capture-element`, `capture-selector`, `capture-visible` - all `^:async`, return Promises with `{:success bool :dataUrl string :error string}`. See `docs/epupp-README.md` for details.
 
 ## Connection and Setup
 
