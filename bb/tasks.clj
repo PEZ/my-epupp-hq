@@ -46,6 +46,17 @@
           (println "  ✗" src "— HTTP" status))))
     (println "Done.")))
 
+(defn- download-exercise! [api-url tampers-dir {:keys [name path]}]
+  (let [{dl-status :status dl-body :body}
+        (http/get (str api-url "/" name)
+                  {:headers {"Accept" "application/vnd.github.raw+json"}
+                   :throw false})]
+    (if (= 200 dl-status)
+      (do (spit (str tampers-dir "/" name)
+                (str (cljs-sync-note path "bb exercises-sync") dl-body))
+          (println "  ✓" path "->" name))
+      (println "  ✗" path "— HTTP" dl-status))))
+
 (defn exercises-sync
   "Sync exercise files from the epupp GitHub repository"
   []
@@ -59,18 +70,8 @@
         (let [entries (json/parse-string body true)
               exercises (filter #(str/ends-with? (:name %) "_exercise.cljs") entries)]
           (if (seq exercises)
-            (do
-              (doseq [{:keys [name path]} exercises]
-                (let [{dl-status :status dl-body :body}
-                      (http/get (str api-url "/" name)
-                                {:headers {"Accept" "application/vnd.github.raw+json"}
-                                 :throw false})]
-                  (if (= 200 dl-status)
-                    (do (spit (str tampers-dir "/" name)
-                              (str (cljs-sync-note path "bb exercises-sync") dl-body))
-                        (println "  ✓" path "->" name))
-                    (println "  ✗" path "— HTTP" dl-status))))
-              (println "Done."))
+            (do (run! #(download-exercise! api-url tampers-dir %) exercises)
+                (println "Done."))
             (println "No exercise files found.")))
         (println "  ✗ Failed to list tampers directory — HTTP" status)))))
 

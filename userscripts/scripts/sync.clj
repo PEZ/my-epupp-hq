@@ -6,30 +6,38 @@
             [clojure.edn :as edn]
             [clojure.string :as str]))
 
+(defn- coercion-flag-sets [coercions]
+  {:bool-flags   (into #{} (for [[k v] coercions :when (= v :boolean)] (str "--" (name k))))
+   :valued-flags (into #{} (for [[k v] coercions :when (not= v :boolean)] (str "--" (name k))))})
+
+(defn- classify-arg [bool-flags valued-flags arg]
+  (cond
+    (bool-flags arg) :bool-flag
+    (valued-flags arg) :valued-flag
+    :else :positional))
+
+(defn- args-step [{:keys [bool-flags valued-flags]} flags positional remaining]
+  (when-let [[arg & more] (seq remaining)]
+    (case (classify-arg bool-flags valued-flags arg)
+      :bool-flag [more (conj flags arg) positional]
+      :valued-flag [(rest more) (conj flags arg (first more)) positional]
+      :positional [more flags (conj positional arg)])))
+
+(defn- split-flags-and-positional [flag-info args]
+  (loop [remaining args flags [] positional []]
+    (if-some [[r f p] (args-step flag-info flags positional remaining)]
+      (recur r f p)
+      [flags positional])))
+
 (defn parse-cli
   "Parse CLI args allowing flags in any position (before or after positional args).
    babashka.cli/parse-args stops parsing opts after the first positional arg,
    so we partition into flags (with their values) and positional args, then
    recombine with flags first."
   [args cli-opts]
-  (let [coercions (:coerce cli-opts)
-        bool-flags (set (map (fn [[k _]] (str "--" (name k)))
-                             (filter (fn [[_ v]] (= v :boolean)) coercions)))
-        valued-flags (set (map (fn [[k _]] (str "--" (name k)))
-                               (filter (fn [[_ v]] (not= v :boolean)) coercions)))]
-    (loop [remaining args flags [] positional []]
-      (if (empty? remaining)
-        (cli/parse-args (concat flags positional) cli-opts)
-        (let [[arg & more] remaining]
-          (cond
-            (bool-flags arg)
-            (recur more (conj flags arg) positional)
-
-            (valued-flags arg)
-            (recur (rest more) (conj flags arg (first more)) positional)
-
-            :else
-            (recur more flags (conj positional arg))))))))
+  (let [flag-info (coercion-flag-sets (:coerce cli-opts))
+        [flags positional] (split-flags-and-positional flag-info args)]
+    (cli/parse-args (concat flags positional) cli-opts)))
 
 ;; --- Core nREPL Communication ---
 
@@ -50,6 +58,18 @@
        " (.catch (fn [e] {:error (.-message e)})))"
        " (catch :default e (js/Promise.resolve {:error (.-message e)}))))"))
 
+(defn- parse-nrepl-result [result]
+  (let [raw (first (:vals result))
+        parsed (parse-promise-str raw)]
+    (or parsed {:error :unexpected-response :raw raw})))
+
+(defn- handle-eval-error [e port]
+  (if (connection-refused? e)
+    {:error :no-relay
+     :message (str "Failed connecting to Epupp relay on port " port)}
+    {:error :execution-error
+     :message (.getMessage e)}))
+
 (defn- eval-epupp
   [{:keys [port expr timeout-ms]
     :or {timeout-ms 5000}}]
@@ -60,17 +80,14 @@
         (do (future-cancel f)
             {:error :timeout
              :message "Operation timed out. Is a browser tab connected to Epupp?"})
-        (let [raw (first (:vals result))
-              parsed (parse-promise-str raw)]
-          (if parsed
-            parsed
-            {:error :unexpected-response :raw raw}))))
+        (parse-nrepl-result result)))
     (catch Exception e
-      (if (connection-refused? e)
-        {:error :no-relay
-         :message (str "Failed connecting to Epupp relay on port " port)}
-        {:error :execution-error
-         :message (.getMessage e)}))))
+      (handle-eval-error e port))))
+
+(defn- interpret-probe-result [result]
+  (if (= "3" (first (:vals result)))
+    :ok
+    :unexpected))
 
 (defn- probe-connection [{:keys [port]}]
   (try
@@ -78,13 +95,9 @@
           result (deref f 2000 ::timeout)]
       (if (= result ::timeout)
         (do (future-cancel f) :no-tab)
-        (if (= "3" (first (:vals result)))
-          :ok
-          :unexpected)))
+        (interpret-probe-result result)))
     (catch Exception e
-      (if (connection-refused? e)
-        :no-relay
-        :unexpected))))
+      (if (connection-refused? e) :no-relay :unexpected))))
 
 ;; --- Epupp FS Wrappers ---
 
@@ -192,8 +205,8 @@
     (abort! (str "Unexpected response from Epupp relay on port " port ".") 1))
   ;; Probe FS Sync: built-in epupp/ scripts always exist, so empty = FS Sync disabled
   (let [{:keys [ok error]} (eval-epupp {:port port
-                                         :expr (wrap-promise-expr "(epupp.fs/ls {:fs/ls-hidden? true})")
-                                         :timeout-ms 5000})]
+                                        :expr (wrap-promise-expr "(epupp.fs/ls {:fs/ls-hidden? true})")
+                                        :timeout-ms 5000})]
     (when (or error (empty? ok))
       (abort! (str "FS REPL Sync is not enabled on port " port ".\n"
                    "  Enable it in Epupp extension settings.")
@@ -204,58 +217,98 @@
 
 ;; --- Commands ---
 
+(defn- list-user-scripts [{:keys [port]}]
+  (let [{:keys [ok error]} (remote-ls {:port port})]
+    (when error (abort! (str "Failed to list remote scripts: " error) 1))
+    (->> ok (map :fs/name) (remove epupp-script?))))
+
+(defn- resolve-script-names [{:keys [args port]}]
+  (cond
+    (empty? args) (list-user-scripts {:port port})
+    (some dir-arg? args) (expand-remote-names args (list-user-scripts {:port port}))
+    :else args))
+
+(defn- fetch-remote-contents [{:keys [port script-names]}]
+  (if (= 1 (count script-names))
+    (let [{:keys [ok error]} (remote-show {:port port :script-name (first script-names)})]
+      (when error (abort! (str "Failed to fetch: " error) 1))
+      {(first script-names) ok})
+    (let [{:keys [ok error]} (remote-show-bulk {:port port :script-names script-names})]
+      (when error (abort! (str "Failed to fetch scripts: " error) 1))
+      ok)))
+
+(defn- gather-local-scripts [args]
+  (let [expanded-local (when (seq args) (expand-local-paths args))]
+    (if expanded-local
+      (mapv (fn [path]
+              {:local-path path
+               :script-name path
+               :code (when (fs/exists? path) (slurp path))})
+            expanded-local)
+      (collect-local-scripts))))
+
 (defn ls [{:keys [args opts]}]
   (let [port (or (:port opts) 3339)]
     (ensure-connected! port)
-    (let [{:keys [ok error]} (remote-ls {:port port})
-          all-names (->> ok (map :fs/name) (remove epupp-script?))
-          names (if (seq args)
-                  (expand-remote-names args all-names)
-                  all-names)]
-      (when error (abort! (str "Failed to list remote scripts: " error) 1))
+    (let [names (resolve-script-names {:args args :port port})]
       (doseq [n (sort names)]
         (println (str "  " n))))))
+
+(defn- download-script! [{:keys [script-name code force? dry-run?]}]
+  (let [local-path (script-name->local-path script-name)]
+    (cond
+      (nil? code)
+      (println (str "  ⚠ Not found in Epupp: " script-name))
+
+      (and (fs/exists? local-path) (not force?))
+      (println (str "  ⚠ Skipped (exists): " local-path " (use --force to overwrite)"))
+
+      dry-run?
+      (println (str "  Would download: " script-name " → " local-path))
+
+      :else
+      (do (fs/create-dirs (fs/parent local-path))
+          (spit local-path code)
+          (println (str "  ✓ " local-path))))))
 
 (defn download [{:keys [args opts]}]
   (let [port (or (:port opts) 3339)
         force? (:force opts)
         dry-run? (:dry-run opts)]
     (ensure-connected! port)
-    (let [has-dirs? (some dir-arg? args)
-          all-remote (when (or (empty? args) has-dirs?)
-                       (let [{:keys [ok error]} (remote-ls {:port port})]
-                         (when error (abort! (str "Failed to list remote scripts: " error) 1))
-                         (->> ok (map :fs/name) (remove epupp-script?))))
-          script-names (cond
-                         (empty? args) all-remote
-                         has-dirs? (expand-remote-names args all-remote)
-                         :else args)
-          contents (if (= 1 (count script-names))
-                     (let [{:keys [ok error]} (remote-show {:port port
-                                                            :script-name (first script-names)})]
-                       (when error (abort! (str "Failed to fetch: " error) 1))
-                       {(first script-names) ok})
-                     (let [{:keys [ok error]} (remote-show-bulk {:port port
-                                                                  :script-names script-names})]
-                       (when error (abort! (str "Failed to fetch scripts: " error) 1))
-                       ok))]
-      (doseq [name script-names]
-        (let [code (get contents name)
-              local-path (script-name->local-path name)]
-          (cond
-            (nil? code)
-            (println (str "  ⚠ Not found in Epupp: " name))
+    (let [script-names (resolve-script-names {:args args :port port})
+          contents (fetch-remote-contents {:port port :script-names script-names})]
+      (run! #(download-script! {:script-name %
+                                :code (get contents %)
+                                :force? force?
+                                :dry-run? dry-run?})
+            script-names))))
 
-            (and (fs/exists? local-path) (not force?))
-            (println (str "  ⚠ Skipped (exists): " local-path " (use --force to overwrite)"))
+(defn- upload-script! [{:keys [local-path code manifest port force? dry-run?]}]
+  (cond
+    (nil? manifest)
+    (println (str "  ⚠ Skipped (no manifest): " local-path))
 
-            dry-run?
-            (println (str "  Would download: " name " → " local-path))
+    dry-run?
+    (println (str "  Would upload: " local-path " → "
+                  (normalize-script-name (:epupp/script-name manifest))))
 
-            :else
-            (do (fs/create-dirs (fs/parent local-path))
-                (spit local-path code)
-                (println (str "  ✓ " local-path)))))))))
+    :else
+    (let [{:keys [ok error] :as result} (remote-save! {:port port :code code :force? force?})]
+      (cond
+        (and error (str/includes? (str error) "FS"))
+        (abort! (str "Write failed: " error "\n"
+                     "  Enable \"FS REPL Sync\" in Epupp extension settings.")
+                1)
+
+        error
+        (println (str "  ✗ " local-path ": "
+                      (if (keyword? error)
+                        (or (:message result) (name error))
+                        error)))
+
+        :else
+        (println (str "  ✓ " (:fs/name ok)))))))
 
 (defn upload [{:keys [args opts]}]
   (let [port (or (:port opts) 3339)
@@ -269,31 +322,8 @@
                                :manifest (read-manifest code)}))
                           (expand-local-paths args))
                     (collect-local-scripts))]
-      (doseq [{:keys [local-path code manifest]} scripts]
-        (cond
-          (nil? manifest)
-          (println (str "  ⚠ Skipped (no manifest): " local-path))
-
-          dry-run?
-          (println (str "  Would upload: " local-path " → "
-                        (normalize-script-name (:epupp/script-name manifest))))
-
-          :else
-          (let [{:keys [ok error] :as result} (remote-save! {:port port :code code :force? force?})]
-            (cond
-              (and error (str/includes? (str error) "FS"))
-              (abort! (str "Write failed: " error "\n"
-                           "  Enable \"FS REPL Sync\" in Epupp extension settings.")
-                      1)
-
-              error
-              (println (str "  ✗ " local-path ": "
-                            (if (keyword? error)
-                              (or (:message result) (name error))
-                              error)))
-
-              :else
-              (println (str "  ✓ " (:fs/name ok))))))))))
+      (run! #(upload-script! (assoc % :port port :force? force? :dry-run? dry-run?))
+            scripts))))
 
 ;; --- Diff ---
 
@@ -313,55 +343,37 @@
       (finally
         (fs/delete-tree tmp-dir)))))
 
+(defn- compare-script [remote-contents local-by-name script-name]
+  (let [remote (get remote-contents script-name)
+        local (get local-by-name script-name)
+        both? (and remote local)]
+    (cond
+      (and both? (= remote local))
+      :identical
+
+      both?
+      (do (run-diff! script-name remote local) :different)
+
+      remote
+      (do (println (str "  Remote only: " script-name)) :remote-only)
+
+      local
+      (do (println (str "  Local only: " script-name)) :local-only))))
+
+(defn- print-diff-summary [{:keys [identical different remote-only local-only]}]
+  (println (str "\n" (or identical 0) " identical, " (or different 0) " different, "
+                (or remote-only 0) " remote-only, " (or local-only 0) " local-only")))
+
 (defn diff-cmd [{:keys [args opts]}]
   (let [port (or (:port opts) 3339)]
     (ensure-connected! port)
-    (let [has-dirs? (some dir-arg? args)
-          all-remote (when (or (empty? args) has-dirs?)
-                       (let [{:keys [ok error]} (remote-ls {:port port})]
-                         (when error (abort! (str "Failed to list: " error) 1))
-                         (->> ok (map :fs/name) (remove epupp-script?))))
-          remote-names (cond
-                         (empty? args) all-remote
-                         has-dirs? (expand-remote-names args all-remote)
-                         :else args)
-          expanded-local (when (seq args) (expand-local-paths args))
-          local-scripts (if expanded-local
-                          (mapv (fn [path]
-                                  {:local-path path
-                                   :script-name path
-                                   :code (when (fs/exists? path) (slurp path))})
-                                expanded-local)
-                          (collect-local-scripts))
+    (let [remote-names (resolve-script-names {:args args :port port})
+          local-scripts (gather-local-scripts args)
           local-by-name (into {} (keep (fn [{:keys [script-name code]}]
                                          (when script-name [script-name code])))
-                               local-scripts)
-          all-names (into (set remote-names) (keys local-by-name))
+                              local-scripts)
+          all-names (sort (into (set remote-names) (keys local-by-name)))
           remote-contents (when (seq remote-names)
-                            (let [{:keys [ok error]} (remote-show-bulk
-                                                      {:port port :script-names remote-names})]
-                              (when error (abort! (str "Failed to fetch: " error) 1))
-                              ok))
-          {:keys [identical different remote-only local-only]}
-          (reduce (fn [stats script-name]
-                    (let [remote (get remote-contents script-name)
-                          local (get local-by-name script-name)]
-                      (cond
-                        (and remote local (= remote local))
-                        (update stats :identical inc)
-
-                        (and remote local)
-                        (do (run-diff! script-name remote local)
-                            (update stats :different inc))
-
-                        remote
-                        (do (println (str "  Remote only: " script-name))
-                            (update stats :remote-only inc))
-
-                        local
-                        (do (println (str "  Local only: " script-name))
-                            (update stats :local-only inc)))))
-                  {:identical 0 :different 0 :remote-only 0 :local-only 0}
-                  (sort all-names))]
-      (println (str "\n" identical " identical, " different " different, "
-                    remote-only " remote-only, " local-only " local-only")))))
+                            (fetch-remote-contents {:port port :script-names remote-names}))]
+      (print-diff-summary
+       (frequencies (mapv #(compare-script remote-contents local-by-name %) all-names))))))
